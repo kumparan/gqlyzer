@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestParseName(t *testing.T) {
+func TestParseName_Ok(t *testing.T) {
 	// Given
 	l := Lexer{
 		input: "hello",
@@ -14,8 +14,23 @@ func TestParseName(t *testing.T) {
 	l.Reset()
 
 	// When
-	output := l.parseName()
+	output, err := l.parseName()
 
 	// Then
+	assert.NoError(t, err)
 	assert.Equal(t, "hello", output)
+}
+
+func TestParseName_Fail(t *testing.T) {
+	// Given
+	l := Lexer{
+		input: "9hello",
+	}
+	l.Reset()
+
+	// When
+	_, err := l.parseName()
+
+	// Then
+	assert.Error(t, err)
 }

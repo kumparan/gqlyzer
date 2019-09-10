@@ -10,13 +10,18 @@ func (l *Lexer) pop() rune {
 	return tail
 }
 
-func (l *Lexer) popFlush() error {
-	for l.pop() != '#' {
+func (l *Lexer) popFlush() (string, error) {
+	result := ""
+	c := l.pop()
+	for c != '#' {
 		if len(l.parseStack) == 0 {
-			return errors.New("flush not found")
+			return "", errors.New("flush not found")
 		}
+		result = string(c) + result
+		c = l.pop()
 	}
-	return nil
+
+	return result, nil
 }
 
 func (l *Lexer) popCond(c rune) error {
