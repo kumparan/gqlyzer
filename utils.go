@@ -50,3 +50,14 @@ func (l *Lexer) read() (c rune, err error) {
 	}
 	return
 }
+
+func (l *Lexer) consumeWhitespace() {
+	c, err := l.read()
+	for err == nil && isWhitespace(c) {
+		if c == '\n' {
+			l.push('\\')
+		}
+		l.cursor++
+		c, err = l.read()
+	}
+}
