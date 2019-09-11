@@ -1,10 +1,16 @@
 package gqlyzer
 
 import (
+	"errors"
+
 	"github.com/kumparan/gqlyzer/token"
 )
 
 func (l *Lexer) parseSelection() (newSelection token.Selection, err error) {
+	if x := l.pop(); x != ',' && x != '\\' {
+		err = errors.New("expected separator")
+	}
+
 	name, err := l.parseName()
 	if err != nil {
 		return
@@ -20,6 +26,7 @@ func (l *Lexer) parseSelection() (newSelection token.Selection, err error) {
 }
 
 func (l *Lexer) parseSelectionSet() (set token.SelectionSet, err error) {
+	set = make(token.SelectionSet)
 	l.consumeWhitespace()
 	c, err := l.read()
 	if err != nil {
@@ -32,13 +39,24 @@ func (l *Lexer) parseSelectionSet() (set token.SelectionSet, err error) {
 		if err != nil {
 			return
 		}
-
+		l.cursor++
 		l.consumeWhitespace()
 		c, err = l.read()
 		for err == nil && c != '}' {
-			l.parseSelection()
+			if c == ',' {
+				l.push(c)
+				l.cursor++
+				l.consumeWhitespace()
+				c, err = l.read()
+				continue
+			}
+
+			selection, err := l.parseSelection()
+			if err != nil {
+				return token.SelectionSet{}, err
+			}
+			set[selection.Name] = selection
 			l.consumeWhitespace()
-			l.cursor++
 			c, err = l.read()
 		}
 

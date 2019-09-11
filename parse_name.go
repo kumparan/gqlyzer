@@ -1,6 +1,8 @@
 package gqlyzer
 
-import "errors"
+import (
+	"errors"
+)
 
 func (l *Lexer) parseName() (string, error) {
 	var name string
