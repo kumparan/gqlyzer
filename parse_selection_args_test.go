@@ -7,7 +7,7 @@ import (
 )
 
 func TestParseArgument(t *testing.T) {
-	t.Run("without string value", func(t *testing.T) {
+	t.Run("with string value", func(t *testing.T) {
 		l := Lexer{input: `SomeQuery: "helloworld"`}
 		l.Reset()
 		l.push('\\')
@@ -18,7 +18,7 @@ func TestParseArgument(t *testing.T) {
 		assert.Equal(t, `"helloworld"`, s.Value)
 	})
 
-	t.Run("without object value", func(t *testing.T) {
+	t.Run("with object value", func(t *testing.T) {
 		l := Lexer{input: `SomeQuery: {
 			test: "helloworld",
 			test2: "helloworld"	

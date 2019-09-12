@@ -29,6 +29,7 @@ type Selection struct {
 	Name string
 	// will be empty, if the selection have no sub field
 	InnerSelection SelectionSet
+	Arguments      ArgumentSet
 	// TODO: wont be implemented for now
 	Alias string
 }

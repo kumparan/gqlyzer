@@ -2,6 +2,7 @@ package gqlyzer
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/kumparan/gqlyzer/token"
 )
@@ -17,9 +18,18 @@ func (l *Lexer) parseSelection() (newSelection token.Selection, err error) {
 	}
 	newSelection.Name = name
 
+	arguments, argErr := l.parseArgumentSet()
+	if argErr == nil && len(arguments) > 0 {
+		newSelection.Arguments = arguments
+		fmt.Println("<><><><>", arguments)
+		l.cursor++
+		l.consumeWhitespace()
+	}
+
 	subSelection, subErr := l.parseSelectionSet()
 	if subErr == nil {
 		newSelection.InnerSelection = subSelection
+
 	}
 
 	return
@@ -32,7 +42,6 @@ func (l *Lexer) parseSelectionSet() (set token.SelectionSet, err error) {
 	if err != nil {
 		return
 	}
-
 	if c == '{' {
 		l.push('{')
 		l.pushFlush()
@@ -58,8 +67,8 @@ func (l *Lexer) parseSelectionSet() (set token.SelectionSet, err error) {
 			set[selection.Name] = selection
 			l.consumeWhitespace()
 			c, err = l.read()
-		}
 
+		}
 		_, err = l.popFlush()
 		if err != nil {
 			return
@@ -69,9 +78,11 @@ func (l *Lexer) parseSelectionSet() (set token.SelectionSet, err error) {
 		if err != nil {
 			return
 		}
+
 	} else {
 		return token.SelectionSet{}, nil
 	}
 
+	l.cursor++
 	return
 }

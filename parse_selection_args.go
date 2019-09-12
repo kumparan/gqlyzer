@@ -2,7 +2,6 @@ package gqlyzer
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/kumparan/gqlyzer/token"
 )
@@ -24,11 +23,12 @@ func (l *Lexer) parseArgument() (argument token.Argument, err error) {
 		err = errors.New("expected : but found " + string(c))
 		return
 	}
+
 	l.cursor++
 	l.consumeWhitespace()
+	c, err = l.read()
 	if subArg, err := l.parseArgumentValueObject(); err == nil {
 		argument.ObjectValue = subArg
-
 	} else if value, err := l.parseString(); err == nil {
 		argument.Value = value
 	} else {
@@ -40,9 +40,6 @@ func (l *Lexer) parseArgument() (argument token.Argument, err error) {
 		argument.Value = value
 	}
 
-	fmt.Println(">>>", argument)
-	l.cursor++
-
 	return
 }
 
@@ -53,10 +50,10 @@ func (l *Lexer) parseArgumentSet() (set token.ArgumentSet, err error) {
 	if err != nil {
 		return
 	}
-
 	if c == '(' {
 		l.push('(')
 		l.pushFlush()
+		l.push('\\')
 		if err != nil {
 			return
 		}
@@ -80,7 +77,6 @@ func (l *Lexer) parseArgumentSet() (set token.ArgumentSet, err error) {
 			l.consumeWhitespace()
 			c, err = l.read()
 		}
-
 		_, err = l.popFlush()
 		if err != nil {
 			return
@@ -116,7 +112,6 @@ func (l *Lexer) parseArgumentValueObject() (set token.ArgumentSet, err error) {
 		l.consumeWhitespace()
 		c, err = l.read()
 		for err == nil && c != '}' {
-			fmt.Println(string(c))
 			if c == ',' {
 				l.push(c)
 				l.cursor++
@@ -130,10 +125,10 @@ func (l *Lexer) parseArgumentValueObject() (set token.ArgumentSet, err error) {
 				return token.ArgumentSet{}, err
 			}
 			set[arg.Key] = arg
+			l.cursor++
 			l.consumeWhitespace()
 			c, err = l.read()
 		}
-		fmt.Println("keluar")
 		_, err = l.popFlush()
 		if err != nil {
 			return
@@ -143,12 +138,11 @@ func (l *Lexer) parseArgumentValueObject() (set token.ArgumentSet, err error) {
 		if err != nil {
 			return
 		}
-
-		fmt.Println("ga error")
+		l.cursor++
+		l.consumeWhitespace()
 	} else {
 		return token.ArgumentSet{}, errors.New("argument is not an object")
 	}
 
-	fmt.Println(">>>  set:", set)
 	return
 }

@@ -29,6 +29,20 @@ func TestParseSelection(t *testing.T) {
 		assert.Equal(t, "SomeQuery", s.Name)
 		assert.Equal(t, "subQuery", s.InnerSelection["subQuery"].Name)
 	})
+
+	t.Run("with arguments", func(t *testing.T) {
+		l := Lexer{input: `SomeQuery(id: 123) {
+			subQuery	
+		}`}
+		l.Reset()
+		l.push('\\')
+
+		s, err := l.parseSelection()
+		assert.NoError(t, err)
+		assert.Equal(t, "SomeQuery", s.Name)
+		assert.Equal(t, "subQuery", s.InnerSelection["subQuery"].Name)
+		assert.Equal(t, "id", s.Arguments["id"].Key)
+	})
 }
 
 func TestParseSelectionSet(t *testing.T) {

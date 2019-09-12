@@ -7,6 +7,8 @@ import "errors"
 func (l *Lexer) pop() rune {
 	tail := l.parseStack[len(l.parseStack)-1]
 	l.parseStack = l.parseStack[:len(l.parseStack)-1]
+
+	l.printParseStack()
 	return tail
 }
 
@@ -21,6 +23,8 @@ func (l *Lexer) popFlush() (string, error) {
 		c = l.pop()
 	}
 
+	l.printParseStack()
+
 	return result, nil
 }
 
@@ -30,11 +34,16 @@ func (l *Lexer) popCond(c rune) error {
 		return errors.New("invalid stack pop")
 	}
 	l.parseStack = l.parseStack[:len(l.parseStack)-1]
+
+	l.printParseStack()
 	return nil
 }
 
 func (l *Lexer) push(c rune) {
 	l.parseStack = append(l.parseStack, c)
+
+	l.printParseStack()
+
 }
 
 func (l *Lexer) pushString(s string) {
@@ -45,4 +54,5 @@ func (l *Lexer) pushString(s string) {
 
 func (l *Lexer) pushFlush() {
 	l.parseStack = append(l.parseStack, '#')
+
 }
