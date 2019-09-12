@@ -32,3 +32,11 @@ type Selection struct {
 	// TODO: wont be implemented for now
 	Alias string
 }
+
+type ArgumentSet map[string]Argument
+
+type Argument struct {
+	Key         string
+	Value       string
+	ObjectValue ArgumentSet
+}
