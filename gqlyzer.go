@@ -1,5 +1,7 @@
 package gqlyzer
 
+import "github.com/kumparan/gqlyzer/token"
+
 // Lexer definition
 type Lexer struct {
 	input      string
@@ -21,4 +23,9 @@ func New(gql string) (l *Lexer) {
 func (l *Lexer) Reset() {
 	l.parseStack = []rune{}
 	l.cursor = 0
+}
+
+// Parse operation without variable
+func (l *Lexer) Parse() (token.Operation, error) {
+	return l.parseOperation()
 }

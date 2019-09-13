@@ -73,4 +73,22 @@ func TestParseSelectionSet(t *testing.T) {
 		assert.Error(t, err)
 	})
 
+	t.Run("with nested value", func(t *testing.T) {
+		l := Lexer{input: `{
+		query1(id: 123) {
+			query3	
+		},
+		query2
+	}`}
+		l.Reset()
+
+		s, err := l.parseSelectionSet()
+
+		assert.NoError(t, err)
+		assert.Equal(t, "query1", s["query1"].Name)
+		assert.Equal(t, "query3", s["query1"].InnerSelection["query3"].Name)
+		assert.Equal(t, "id", s["query1"].Arguments["id"].Key)
+		assert.Equal(t, "query2", s["query2"].Name)
+	})
+
 }

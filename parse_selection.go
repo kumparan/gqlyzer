@@ -2,7 +2,6 @@ package gqlyzer
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/kumparan/gqlyzer/token"
 )
@@ -21,7 +20,6 @@ func (l *Lexer) parseSelection() (newSelection token.Selection, err error) {
 	arguments, argErr := l.parseArgumentSet()
 	if argErr == nil && len(arguments) > 0 {
 		newSelection.Arguments = arguments
-		fmt.Println("<><><><>", arguments)
 		l.cursor++
 		l.consumeWhitespace()
 	}
