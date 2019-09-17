@@ -1,6 +1,12 @@
 package gqlyzer
 
-import "github.com/kumparan/gqlyzer/token"
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+
+	"github.com/kumparan/gqlyzer/token"
+)
 
 // Lexer definition
 type Lexer struct {
@@ -27,5 +33,36 @@ func (l *Lexer) Reset() {
 
 // Parse operation without variable
 func (l *Lexer) Parse() (token.Operation, error) {
+	return l.parseOperation()
+}
+
+func (l *Lexer) ParseWithVariables(variables string) (token.Operation, error) {
+	fmt.Println(variables)
+
+	variableMap := make(map[string]interface{})
+	err := json.Unmarshal([]byte(variables), &variableMap)
+	if err != nil {
+		return token.Operation{}, err
+	}
+	fmt.Println(variableMap)
+
+	for key, content := range variableMap {
+		var s string
+		switch content.(type) {
+		case string:
+			s = content.(string)
+		case int:
+			s = string(content.(int))
+		default:
+			jsonStr, err := json.Marshal(content)
+			if err != nil {
+				return token.Operation{}, err
+			}
+			s = string(jsonStr)
+		}
+		fmt.Println(s)
+		l.input = strings.ReplaceAll(l.input, "$"+key, s)
+	}
+
 	return l.parseOperation()
 }

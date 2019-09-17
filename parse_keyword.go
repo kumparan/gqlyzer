@@ -1,6 +1,8 @@
 package gqlyzer
 
-import "errors"
+import (
+	"errors"
+)
 
 func (l *Lexer) parseKeyword(keyword string) error {
 	l.pushFlush()
@@ -12,7 +14,6 @@ func (l *Lexer) parseKeyword(keyword string) error {
 	}
 
 	k, err := l.popFlush()
-
 	if k != keyword {
 		return errors.New("unknown keyword: " + k)
 	}

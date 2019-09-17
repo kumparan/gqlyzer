@@ -2,6 +2,7 @@ package gqlyzer
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/kumparan/gqlyzer/token"
 	"github.com/kumparan/gqlyzer/token/operation"
@@ -48,19 +49,44 @@ func (l *Lexer) parseOperation() (op token.Operation, err error) {
 
 	// get name of named operation
 	if isQuery || isMutation {
-		op.Name, err = l.parseName()
+		name, err := l.parseName()
 		if err != nil {
-			return
+			return token.Operation{}, err
 		}
-		l.pushString(op.Name)
+		op.Name = name
 	} else {
 		op.Type = operation.Query
 	}
 
+	l.consumeWhitespace()
+	c, err = l.read()
+	fmt.Println(">>", string(c))
+	if err != nil {
+		return
+	}
+
+	// ignore variable of operation
+	if c == '(' {
+		l.cursor++
+		c, err = l.read()
+		for err == nil && c != ')' {
+			l.cursor++
+			c, err = l.read()
+		}
+
+		if err != nil {
+			return
+		}
+
+		l.cursor++
+	}
+
+	fmt.Println("masih jalan")
 	op.Selections, err = l.parseSelectionSet()
 	if err != nil {
 		return
 	}
 
+	fmt.Println("masih jalan 2", op, err)
 	return
 }

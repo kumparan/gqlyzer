@@ -5,6 +5,7 @@ import "github.com/kumparan/gqlyzer/token/operation"
 type (
 	// SelectionSet is list of selection
 	SelectionSet map[string]Selection
+	Variables    map[string]string
 )
 
 // Parameter containing information of a query or operation parameter
