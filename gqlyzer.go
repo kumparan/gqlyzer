@@ -44,13 +44,12 @@ func (l *Lexer) ParseWithVariables(variables string) (token.Operation, error) {
 	if err != nil {
 		return token.Operation{}, err
 	}
-	fmt.Println(variableMap)
 
 	for key, content := range variableMap {
 		var s string
 		switch content.(type) {
 		case string:
-			s = content.(string)
+			s = fmt.Sprintf("\"%s\"", content.(string))
 		case int:
 			s = string(content.(int))
 		default:
@@ -60,7 +59,6 @@ func (l *Lexer) ParseWithVariables(variables string) (token.Operation, error) {
 			}
 			s = string(jsonStr)
 		}
-		fmt.Println(s)
 		l.input = strings.ReplaceAll(l.input, "$"+key, s)
 	}
 

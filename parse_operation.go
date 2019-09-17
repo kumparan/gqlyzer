@@ -2,7 +2,6 @@ package gqlyzer
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/kumparan/gqlyzer/token"
 	"github.com/kumparan/gqlyzer/token/operation"
@@ -60,7 +59,6 @@ func (l *Lexer) parseOperation() (op token.Operation, err error) {
 
 	l.consumeWhitespace()
 	c, err = l.read()
-	fmt.Println(">>", string(c))
 	if err != nil {
 		return
 	}
@@ -79,14 +77,13 @@ func (l *Lexer) parseOperation() (op token.Operation, err error) {
 		}
 
 		l.cursor++
+		l.consumeWhitespace()
 	}
 
-	fmt.Println("masih jalan")
 	op.Selections, err = l.parseSelectionSet()
 	if err != nil {
 		return
 	}
 
-	fmt.Println("masih jalan 2", op, err)
 	return
 }

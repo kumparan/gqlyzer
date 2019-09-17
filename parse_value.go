@@ -51,5 +51,6 @@ func (l *Lexer) parseString() (value string, err error) {
 		return
 	}
 
+	l.cursor++
 	return `"` + content + `"`, nil
 }
