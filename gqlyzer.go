@@ -37,7 +37,6 @@ func (l *Lexer) Parse() (token.Operation, error) {
 }
 
 func (l *Lexer) ParseWithVariables(variables string) (token.Operation, error) {
-	fmt.Println(variables)
 
 	variableMap := make(map[string]interface{})
 	err := json.Unmarshal([]byte(variables), &variableMap)
