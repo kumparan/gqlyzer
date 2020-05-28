@@ -1,7 +1,10 @@
 # go-connect
 
 <a name="v1.2.0"></a>
-## [v1.2.0] - 0001-01-01
+## [v1.2.0] - 2020-05-28
+### New Features
+- add subscription type, changelog, and linter
+
 
 <a name="v1.1.0"></a>
 ## [v1.1.0] - 2019-09-18
