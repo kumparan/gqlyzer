@@ -3,6 +3,7 @@ package gqlyzer
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/kumparan/gqlyzer/token/operation"
@@ -58,7 +59,7 @@ func (l *Lexer) ParseWithVariables(variables string) (token.Operation, error) {
 		case string:
 			s = fmt.Sprintf("\"%s\"", c)
 		case int:
-			s = string(c)
+			s = strconv.Itoa(c)
 		default:
 			jsonStr, err := json.Marshal(content)
 			if err != nil {
