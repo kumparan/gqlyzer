@@ -2,13 +2,14 @@ package gqlyzer
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/kumparan/gqlyzer/token"
 )
 
 func (l *Lexer) parseArgument() (argument token.Argument, err error) {
 	if x := l.pop(); x != ',' && x != '\\' {
-		err = errors.New("expected separator")
+		err = fmt.Errorf("expected separator, but got: %s", string(x))
 		return
 	}
 

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/kumparan/gqlyzer/token/operation"
+
 	"github.com/kumparan/gqlyzer/token"
 )
 
@@ -34,6 +36,12 @@ func (l *Lexer) Reset() {
 // Parse operation without variable
 func (l *Lexer) Parse() (token.Operation, error) {
 	return l.parseOperation()
+}
+
+// ParseOperationType parse operation type only
+func (l *Lexer) ParseOperationType() (operation.Type, error) {
+	ot, _, err := l.parseOperationType()
+	return ot, err
 }
 
 // ParseWithVariables parse operation with variable
