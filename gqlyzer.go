@@ -36,8 +36,8 @@ func (l *Lexer) Parse() (token.Operation, error) {
 	return l.parseOperation()
 }
 
+// ParseWithVariables parse operation with variable
 func (l *Lexer) ParseWithVariables(variables string) (token.Operation, error) {
-
 	variableMap := make(map[string]interface{})
 	err := json.Unmarshal([]byte(variables), &variableMap)
 	if err != nil {
@@ -46,11 +46,11 @@ func (l *Lexer) ParseWithVariables(variables string) (token.Operation, error) {
 
 	for key, content := range variableMap {
 		var s string
-		switch content.(type) {
+		switch c := content.(type) {
 		case string:
-			s = fmt.Sprintf("\"%s\"", content.(string))
+			s = fmt.Sprintf("\"%s\"", c)
 		case int:
-			s = string(content.(int))
+			s = string(c)
 		default:
 			jsonStr, err := json.Marshal(content)
 			if err != nil {

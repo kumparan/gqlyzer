@@ -1,7 +1,10 @@
 package gqlyzer
 
-import "github.com/stretchr/testify/assert"
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
 
 func TestParseMutationKeyword(t *testing.T) {
 	t.Run(`should return no error when given correct keyword`, func(t *testing.T) {

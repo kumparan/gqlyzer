@@ -12,8 +12,7 @@ func (l *Lexer) parseOperation() (op token.Operation, err error) {
 	l.pushFlush()
 	// parse "query" keyword
 	var (
-		isQuery    bool
-		isMutation bool
+		isQuery, isMutation, isSubscription bool
 	)
 
 	c, err := l.read()
@@ -33,6 +32,12 @@ func (l *Lexer) parseOperation() (op token.Operation, err error) {
 		}
 		isMutation = true
 		l.cursor++
+	case 's':
+		if err = l.parseKeyword("subscription"); err != nil {
+			return
+		}
+		isSubscription = true
+		l.cursor++
 	case '{':
 		break
 	default:
@@ -40,14 +45,17 @@ func (l *Lexer) parseOperation() (op token.Operation, err error) {
 		return
 	}
 
-	if isQuery {
+	switch true {
+	case isQuery:
 		op.Type = operation.Query
-	} else if isMutation {
+	case isSubscription:
+		op.Type = operation.Subscription
+	case isMutation:
 		op.Type = operation.Mutation
 	}
 
 	// get name of named operation
-	if isQuery || isMutation {
+	if isQuery || isMutation || isSubscription {
 		name, err := l.parseName()
 		if err != nil {
 			return token.Operation{}, err

@@ -9,6 +9,7 @@ import (
 func (l *Lexer) parseArgument() (argument token.Argument, err error) {
 	if x := l.pop(); x != ',' && x != '\\' {
 		err = errors.New("expected separator")
+		return
 	}
 
 	name, err := l.parseName()
@@ -19,6 +20,9 @@ func (l *Lexer) parseArgument() (argument token.Argument, err error) {
 
 	l.consumeWhitespace()
 	c, err := l.read()
+	if err != nil {
+		return
+	}
 	if c != ':' {
 		err = errors.New("expected : but found " + string(c))
 		return
@@ -26,7 +30,10 @@ func (l *Lexer) parseArgument() (argument token.Argument, err error) {
 
 	l.cursor++
 	l.consumeWhitespace()
-	c, err = l.read()
+	_, err = l.read()
+	if err != nil {
+		return
+	}
 	if subArg, err := l.parseArgumentValueObject(); err == nil {
 		argument.ObjectValue = subArg
 	} else if value, err := l.parseString(); err == nil {
@@ -76,6 +83,9 @@ func (l *Lexer) parseArgumentSet() (set token.ArgumentSet, err error) {
 			set[arg.Key] = arg
 			l.consumeWhitespace()
 			c, err = l.read()
+			if err != nil {
+				return token.ArgumentSet{}, err
+			}
 		}
 		_, err = l.popFlush()
 		if err != nil {
@@ -128,6 +138,9 @@ func (l *Lexer) parseArgumentValueObject() (set token.ArgumentSet, err error) {
 			l.cursor++
 			l.consumeWhitespace()
 			c, err = l.read()
+			if err != nil {
+				return token.ArgumentSet{}, err
+			}
 		}
 		_, err = l.popFlush()
 		if err != nil {

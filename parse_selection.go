@@ -9,6 +9,7 @@ import (
 func (l *Lexer) parseSelection() (newSelection token.Selection, err error) {
 	if x := l.pop(); x != ',' && x != '\\' {
 		err = errors.New("expected separator")
+		return
 	}
 
 	name, err := l.parseName()
@@ -65,7 +66,9 @@ func (l *Lexer) parseSelectionSet() (set token.SelectionSet, err error) {
 			set[selection.Name] = selection
 			l.consumeWhitespace()
 			c, err = l.read()
-
+			if err != nil {
+				return token.SelectionSet{}, err
+			}
 		}
 		_, err = l.popFlush()
 		if err != nil {

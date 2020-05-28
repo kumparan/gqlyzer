@@ -21,6 +21,9 @@ func (l *Lexer) parseOtherAsString() (value string, err error) {
 
 func (l *Lexer) parseString() (value string, err error) {
 	c, err := l.read()
+	if err != nil {
+		return
+	}
 
 	if c == '\'' || c == '"' {
 		l.push(c)
