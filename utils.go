@@ -2,7 +2,6 @@ package gqlyzer
 
 import (
 	"errors"
-	"fmt"
 )
 
 func isNumber(c rune) bool {
@@ -31,13 +30,6 @@ func isWhitespace(c rune) bool {
 	}
 }
 
-func (l *Lexer) printParseStack() {
-	for _, c := range l.parseStack {
-		fmt.Print(string(c))
-	}
-	fmt.Println()
-}
-
 func (l *Lexer) isEOF() bool {
 	return l.cursor >= len(l.input)
 }
@@ -61,3 +53,11 @@ func (l *Lexer) consumeWhitespace() {
 		c, err = l.read()
 	}
 }
+
+// commented out since no usage, needed in development
+//func (l *Lexer) printParseStack() {
+//	for _, c := range l.parseStack {
+//		fmt.Print(string(c))
+//	}
+//	fmt.Println()
+//}

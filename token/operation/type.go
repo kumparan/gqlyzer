@@ -8,4 +8,6 @@ const (
 	Mutation Type = "MUTATION"
 	// Query type
 	Query Type = "QUERY"
+	// Subscription type
+	Subscription Type = "SUBSCRIPTION"
 )

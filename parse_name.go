@@ -7,8 +7,8 @@ import (
 func (l *Lexer) parseName() (string, error) {
 	var name string
 	c, err := l.read()
-	if !isAlphabet(c) {
-		return "", errors.New("first character of an identifier Name have to be an alphabet: " + string(c))
+	if !isAlphabet(c) && c != '_' {
+		return "", errors.New("first character of an identifier Name have to be an alphabet or underscore: " + string(c))
 	}
 
 	for (isAlphabet(c) || c == '_' || isNumber(c)) &&

@@ -7,14 +7,9 @@ import (
 	"github.com/kumparan/gqlyzer/token/operation"
 )
 
-func (l *Lexer) parseOperation() (op token.Operation, err error) {
+func (l *Lexer) parseOperationType() (op operation.Type, isAnonymous bool, err error) {
 	l.consumeWhitespace()
 	l.pushFlush()
-	// parse "query" keyword
-	var (
-		isQuery    bool
-		isMutation bool
-	)
 
 	c, err := l.read()
 	if err != nil {
@@ -25,40 +20,43 @@ func (l *Lexer) parseOperation() (op token.Operation, err error) {
 		if err = l.parseKeyword("query"); err != nil {
 			return
 		}
-		isQuery = true
-		l.cursor++
+		return operation.Query, false, nil
 	case 'm':
 		if err = l.parseKeyword("mutation"); err != nil {
 			return
 		}
-		isMutation = true
-		l.cursor++
-	case '{':
-		break
+		return operation.Mutation, false, nil
+	case 's':
+		if err = l.parseKeyword("subscription"); err != nil {
+			return
+		}
+		return operation.Subscription, false, nil
+	case '{': // anonymous operation returns query type
+		return operation.Query, true, nil
 	default:
 		err = errors.New("unknown definition")
 		return
 	}
+}
 
-	if isQuery {
-		op.Type = operation.Query
-	} else if isMutation {
-		op.Type = operation.Mutation
+func (l *Lexer) parseOperation() (op token.Operation, err error) {
+	opType, isAnonymous, err := l.parseOperationType()
+	if err != nil {
+		return
 	}
 
-	// get name of named operation
-	if isQuery || isMutation {
+	op.Type = opType
+	if !isAnonymous {
+		l.cursor++
 		name, err := l.parseName()
 		if err != nil {
 			return token.Operation{}, err
 		}
 		op.Name = name
-	} else {
-		op.Type = operation.Query
 	}
 
 	l.consumeWhitespace()
-	c, err = l.read()
+	c, err := l.read()
 	if err != nil {
 		return
 	}
