@@ -46,8 +46,19 @@ func (l *Lexer) parseOperation() (op token.Operation, err error) {
 	}
 
 	op.Type = opType
+
+	// check if query is json anonymous but uses variables
+	l.consumeWhitespace()
+	c, err := l.read()
+	if err != nil {
+		return
+	}
+
+	if c == '(' || c == '{' && !isAnonymous { // check anonymous json query doesnt use variable
+		isAnonymous = true
+	}
+
 	if !isAnonymous {
-		l.cursor++
 		name, err := l.parseName()
 		if err != nil {
 			return token.Operation{}, err
@@ -55,8 +66,7 @@ func (l *Lexer) parseOperation() (op token.Operation, err error) {
 		op.Name = name
 	}
 
-	l.consumeWhitespace()
-	c, err := l.read()
+	c, err = l.read()
 	if err != nil {
 		return
 	}

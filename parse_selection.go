@@ -16,7 +16,29 @@ func (l *Lexer) parseSelection() (newSelection token.Selection, err error) {
 	if err != nil {
 		return
 	}
-	newSelection.Name = name
+
+	if l.isEOF() {
+		newSelection.Name = name
+		return
+	}
+
+	c, err := l.read()
+	if err != nil {
+		return
+	}
+
+	if c == ':' {
+		newSelection.Alias = name
+		l.cursor++
+		l.consumeWhitespace()
+		name, err = l.parseName()
+		if err != nil {
+			return
+		}
+		newSelection.Name = name
+	} else {
+		newSelection.Name = name
+	}
 
 	arguments, argErr := l.parseArgumentSet()
 	if argErr == nil && len(arguments) > 0 {

@@ -1,4 +1,4 @@
-# go-connect
+# gqlyzer
 {{ if .Versions -}}
 
 {{ if .Unreleased.CommitGroups -}} 

@@ -1,3 +1,4 @@
+// Package gqlyzer graphql query lexical analyzer
 package gqlyzer
 
 import (
