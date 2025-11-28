@@ -1,3 +1,4 @@
+// Package token :nodoc:
 package token
 
 import "github.com/kumparan/gqlyzer/token/operation"
@@ -34,7 +35,7 @@ type Selection struct {
 	InnerSelection SelectionSet
 	// Arguments in the selection
 	Arguments ArgumentSet
-	// TODO: wont be implemented for now
+	// Alias for name field
 	Alias string
 }
 

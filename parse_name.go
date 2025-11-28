@@ -7,6 +7,20 @@ import (
 func (l *Lexer) parseName() (string, error) {
 	var name string
 	c, err := l.read()
+	// ignore ... on fragments
+	for err == nil && c == '.' {
+		l.cursor++
+		c, err = l.read()
+		continue
+	}
+
+	// for fragments "... on <fragment name>"
+	if c == ' ' {
+		l.consumeWhitespace()
+		l.cursor += 3
+		c, err = l.read()
+	}
+
 	if !isAlphabet(c) && c != '_' {
 		return "", errors.New("first character of an identifier Name have to be an alphabet or underscore: " + string(c))
 	}

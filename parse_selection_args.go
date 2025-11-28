@@ -116,9 +116,7 @@ func (l *Lexer) parseArgumentValueObject() (set token.ArgumentSet, err error) {
 	if c == '{' {
 		l.push('{')
 		l.pushFlush()
-		if err != nil {
-			return
-		}
+		l.push('\\')
 		l.cursor++
 		l.consumeWhitespace()
 		c, err = l.read()
@@ -136,7 +134,6 @@ func (l *Lexer) parseArgumentValueObject() (set token.ArgumentSet, err error) {
 				return token.ArgumentSet{}, err
 			}
 			set[arg.Key] = arg
-			l.cursor++
 			l.consumeWhitespace()
 			c, err = l.read()
 			if err != nil {

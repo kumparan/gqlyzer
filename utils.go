@@ -2,6 +2,7 @@ package gqlyzer
 
 import (
 	"errors"
+	"unicode"
 )
 
 func isNumber(c rune) bool {
@@ -22,12 +23,7 @@ func isAlphabet(c rune) bool {
 }
 
 func isWhitespace(c rune) bool {
-	switch c {
-	case '\n', '\t', ' ':
-		return true
-	default:
-		return false
-	}
+	return unicode.IsSpace(c)
 }
 
 func (l *Lexer) isEOF() bool {

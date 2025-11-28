@@ -1,3 +1,4 @@
+// Package operation :nodoc:
 package operation
 
 // Type is the operation type
