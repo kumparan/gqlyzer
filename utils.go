@@ -14,12 +14,7 @@ func isNumber(c rune) bool {
 }
 
 func isAlphabet(c rune) bool {
-	if (c >= 'a' && c <= 'z') ||
-		(c >= 'A' && c < 'Z') {
-		return true
-	}
-
-	return false
+	return unicode.IsLetter(c)
 }
 
 func isWhitespace(c rune) bool {

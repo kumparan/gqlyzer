@@ -1,5 +1,11 @@
 # gqlyzer
 
+<a name="v1.3.1"></a>
+## [v1.3.1] - 2025-12-02
+### Fixes
+- IsAlphabet did not include Z
+
+
 <a name="v1.3.0"></a>
 ## [v1.3.0] - 2025-11-28
 ### New Features
@@ -18,7 +24,8 @@
 <a name="v1.0.0"></a>
 ## v1.0.0 - 2019-09-13
 
-[Unreleased]: https://github.com/kumparan/gqlyzer/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/kumparan/gqlyzer/compare/v1.3.1...HEAD
+[v1.3.1]: https://github.com/kumparan/gqlyzer/compare/v1.3.0...v1.3.1
 [v1.3.0]: https://github.com/kumparan/gqlyzer/compare/v1.2.0...v1.3.0
 [v1.2.0]: https://github.com/kumparan/gqlyzer/compare/v1.1.0...v1.2.0
 [v1.1.0]: https://github.com/kumparan/gqlyzer/compare/v1.0.0...v1.1.0
