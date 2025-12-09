@@ -33,7 +33,7 @@ func (l *Lexer) parseOperationType() (op operation.Type, isAnonymous bool, err e
 		return operation.Subscription, false, nil
 	case '{': // anonymous operation returns query type
 		return operation.Query, true, nil
-	default:
+	default: // TODO: parse fragments
 		err = errors.New("unknown definition")
 		return
 	}

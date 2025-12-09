@@ -81,9 +81,21 @@ func (l *Lexer) parseSelectionSet() (set token.SelectionSet, err error) {
 				continue
 			}
 
+			switch {
+			case l.parseStack[len(l.parseStack)-1] == ',':
+				goto parseSelection
+			case l.parseStack[len(l.parseStack)-1] != '\\': // TODO: cases with space separator i.e. directives (currently ignored)
+				for err == nil && c != '\n' {
+					l.cursor++
+					c, err = l.read()
+					continue
+				}
+				l.consumeWhitespace()
+			}
+
+		parseSelection:
 			selection, err := l.parseSelection()
 			if err != nil {
-				fmt.Print(set)
 				return token.SelectionSet{}, err
 			}
 			set[selection.Name] = selection

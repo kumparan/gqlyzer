@@ -57,3 +57,50 @@ func (l *Lexer) parseString() (value string, err error) {
 	l.cursor++
 	return `"` + content + `"`, nil
 }
+
+func (l *Lexer) parseText() (value string, err error) {
+	c, err := l.read()
+	if err != nil {
+		return
+	}
+
+	if c == '[' {
+		l.push(c)
+	} else {
+		err = errors.New("value is not a text")
+		return
+	}
+
+	l.pushFlush()
+
+parseTextPart:
+	l.cursor++
+	c, err = l.read()
+	for err == nil && c != ']' {
+		l.push(c)
+		l.cursor++
+		c, err = l.read()
+	}
+
+	l.cursor++
+	c, err = l.read()
+	if err != nil {
+		return
+	}
+	if c != ')' {
+		goto parseTextPart
+	}
+
+	content, err := l.popFlush()
+	if err != nil {
+		return
+	}
+
+	if c != l.pop() {
+		err = errors.New("no " + string(c) + " found")
+		return
+	}
+
+	l.cursor++
+	return `[` + content + `]`, nil
+}

@@ -61,17 +61,18 @@ func TestParseSelectionSet(t *testing.T) {
 		assert.Equal(t, "query3", s["query3"].Name)
 	})
 
-	t.Run("with incorrect separator", func(t *testing.T) {
-		l := Lexer{input: `{
-		query1 query2
-		query3
-	}`}
-		l.Reset()
+	// ignored since existing real cases such as directives is valid with the assumed incorrect separator
+	// t.Run("with incorrect separator", func(t *testing.T) {
+	// 	l := Lexer{input: `{
+	// 	query1 query2
+	// 	query3
+	// }`}
+	// 	l.Reset()
 
-		_, err := l.parseSelectionSet()
+	// 	_, err := l.parseSelectionSet()
 
-		assert.Error(t, err)
-	})
+	// 	assert.Error(t, err)
+	// })
 
 	t.Run("with nested value", func(t *testing.T) {
 		l := Lexer{input: `{
