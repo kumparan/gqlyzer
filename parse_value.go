@@ -58,6 +58,7 @@ func (l *Lexer) parseString() (value string, err error) {
 	return `"` + content + `"`, nil
 }
 
+// TODO: handle if user's text input contains "])"
 func (l *Lexer) parseText() (value string, err error) {
 	c, err := l.read()
 	if err != nil {
