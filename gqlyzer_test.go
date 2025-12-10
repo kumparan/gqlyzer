@@ -230,13 +230,12 @@ func TestParse(t *testing.T) {
 	})
 
 	t.Run("json introspection query", func(t *testing.T) {
-		// TODO: this query particularly on "{ name kind }" is not correctly handled yet.
 		l := Lexer{input: "\n    query IntrospectionQuery {\n      __schema {\n        \n        queryType { name kind }\n        mutationType { name kind }\n        subscriptionType { name kind }\n        types {\n          ...FullType\n        }\n        directives {\n          name\n          description\n          \n          locations\n          args {\n            ...InputValue\n          }\n        }\n      }\n    }\n\n    "}
 		l.Reset()
 
-		s, _ := l.Parse()
+		s, err := l.Parse()
 
-		// assert.NoError(t, err)
+		assert.Error(t, err) // TODO: should be no error. have not yet handle subquery with space separator "{ name kind }"
 		assert.Equal(t, operation.Query, s.Type)
 		assert.Equal(t, "IntrospectionQuery", s.Name)
 		assert.Equal(t, "__schema", s.Selections["__schema"].Name)
