@@ -58,7 +58,7 @@ func (l *Lexer) parseString() (value string, err error) {
 	return `"` + content + `"`, nil
 }
 
-// TODO: handle if user's text input contains "])"
+// TODO: handle if user's text input contains "]<whitespace>)"
 func (l *Lexer) parseText() (value string, err error) {
 	c, err := l.read()
 	if err != nil {
@@ -88,7 +88,16 @@ parseTextPart:
 	if err != nil {
 		return
 	}
+	if c == '\n' { // currently any text payload that consists ]\n<whitespace><next char> will be parsed as ]<next char>
+		l.consumeWhitespace()
+	}
+
+	c, err = l.read()
+	if err != nil {
+		return
+	}
 	if c != ')' {
+		l.push(c)
 		goto parseTextPart
 	}
 
@@ -97,11 +106,10 @@ parseTextPart:
 		return
 	}
 
-	if c != l.pop() {
+	if l.pop() != '[' {
 		err = errors.New("no " + string(c) + " found")
 		return
 	}
 
-	l.cursor++
 	return `[` + content + `]`, nil
 }

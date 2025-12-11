@@ -219,7 +219,18 @@ func TestParse(t *testing.T) {
 	})
 
 	t.Run("json with text", func(t *testing.T) {
-		l := Lexer{input: "mutation {\n\tAnalyzeTypo(texts: [\n    \"GuluGuluGleg Gleg Gleg Khhrkkkrrrhrhhhrkkk\",\n    \"Lorem ipsum dolor sit amet, elit\",\n    \"roin maximus lectus ut turpis semper, vel blandit est accumsan.\",\n    \"Quisque faucibus, dui eu suscipit condimentum, sapien ante tincidunt ipsum, vitae aliquam elit odio quis arcu.\",\n    \"Donec aliquet tristique elit ut euismod\",\n    \"Proin ut urna eget mi euismod auctor.\",\n    \"The framework of thinking or rationale and research gaps that will be examined and contributed the results of research on solving problems related to coastal area management, especially development of technology for restoration and rehabilitation of mangrove ecosystems (personal documentation).\",\n\t]) {\n\t\ttypos{\n\t\t\toffset\n\t\t\ttype\n\t\t\ttoken\n\t\t\tsuggestions {\n\t\t\t\ttoken\n\t\t\t\tscore\n\t\t\t}\n\t\t}\n\t\t\n\t}\n}"}
+		l := Lexer{input: "mutation {\n  ReviseTopicSummaries(\n    linkedSummaryID: \"12345678\"\n    synthesisVoiceID: 2\n    reviseInput: [\n      {\n        summaryID: \"12345678\"\n        revisedSummary: \"COK Suzuki Fronx adalah mobil sub-compact SUV yang dirilis dengan harga mulai dari Rp 242,2 juta hingga Rp 316,3 juta. asda asda sdas\"\n      }\n    ]\n  )\n}"}
+		l.Reset()
+
+		s, err := l.Parse()
+
+		assert.NoError(t, err)
+		assert.Equal(t, operation.Mutation, s.Type)
+		assert.Equal(t, "ReviseTopicSummaries", s.Selections["ReviseTopicSummaries"].Name)
+	})
+
+	t.Run("json with text", func(t *testing.T) {
+		l := Lexer{input: "mutation {\n\tAnalyzeTypo(texts: [\n    \"GuluGuluGleg Gleg Gleg Khhrkkkrrrhrhhhrkkk\",\n    \"Lorem ipsum dolor sit amet, elit\",\n    \"roin maximus lectus ut turpis semper, vel blandit est accumsan.\",\n    \"Quisque faucibus, dui eu suscipit condimentum, sapien ante tincidunt ipsum, vitae aliquam elit odio quis arcu.\",\n    \"Donec aliquet tristique elit ut euismod\",\n    \"Proin ut urna eget mi euismod auctor.\",\n    \"Quisque faucibus, dui eu suscipit condimentum, sapien ante tincidunt ipsum, vitae aliquam elit odio quis arcu.\",\n\t]) {\n\t\ttypos{\n\t\t\toffset\n\t\t\ttype\n\t\t\ttoken\n\t\t\tsuggestions {\n\t\t\t\ttoken\n\t\t\t\tscore\n\t\t\t}\n\t\t}\n\t\t\n\t}\n}"}
 		l.Reset()
 
 		s, err := l.Parse()
