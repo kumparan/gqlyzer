@@ -36,8 +36,6 @@ func (l *Lexer) parseString() (value string, err error) {
 	l.cursor++
 	c, err = l.read()
 	for err == nil &&
-		!isWhitespace(c) &&
-		c != '\'' &&
 		c != '"' {
 		l.push(c)
 		l.cursor++
