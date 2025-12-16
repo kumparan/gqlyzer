@@ -240,6 +240,17 @@ func TestParse(t *testing.T) {
 		assert.Equal(t, "AnalyzeTypo", s.Selections["AnalyzeTypo"].Name)
 	})
 
+	t.Run("json input array", func(t *testing.T) {
+		l := Lexer{input: "mutation {\n\tReviseTopicSummaries(\n\t\treviseInput: [\n\t\t\t{\n\t\t\tsummaryID: \"1234567890\"\n\t\t\trevisedSummary: \"Satpol PP Kabupaten Penajam Paser Utara menangkap 64 PSK di wilayah IKN sepanjang tahun ini. Mereka yang terjaring berasal dari berbagai kota seperti Samarinda, Balikpapan, Bandung, Makassar, dan Yogyakarta. \\n \\n Para PSK tersebut beroperasi secara mandiri, tanpa difasilitasi oleh muncikari. Oleh karena itu, mereka tidak dapat dikenakan pidana, melainkan hanya mendapatkan sanksi pengusiran dari Penajam Paser Utara.\"\n\t\t\t},\n\t\t\t{\n\t\t\tsummaryID: \"1234567890\"\n\t\t\trevisedSummary: \"* Terbaru! Suzuki Fronx meluncurkan fitur Advanced Driving Assistant System (ADAS) yang dirancang untuk membantu pengemudi mengurangi keletihan dan meningkatkan keselamatan berkendara.\\n* Fitur-fitur ADAS di Suzuki Fronx meliputi Dual Sensor Brake Support II, Adaptive Cruise Control, Lane Keep Assist, Lane Departure Warning, Lane Departure Prevention, Vehicle Swaying Warning, Blind Spot Monitor, Rear Cross Traffic Alert, dan High Beam Assist.\\n* Sistem ini memanfaatkan modul kamera dan sensor radar untuk memancarkan gelombang radio untuk mengukur jarak dan kecepatan objek di depan dan belakang.\\n* Suzuki Fronx hadir sebagai pilihan baru di segmen SUV sub-compact crossover dengan panjang dimensi 4 meter dan tersedia dalam varian SGX A/T SHVS, GX A/T SHVS, GX M/T SHVS, GL A/T, dan GL M/T.\\n* Suzuki Fronx berhasil mengimpor 3.990 unit mobil ke Jepang pada bulan April, lebih tinggi dibandingkan Mercedes-Benz dan BMW, didorong oleh ledakan permintaan terhadap Jimny Nomade versi lima pintu.\"\n\t\t\t},\n\t\t]\n\t\tlinkedSummaryID: \"1765524525286736337\"\n\t\tsynthesisVoiceID: \"1\"\n\t)\n}"}
+		l.Reset()
+
+		s, err := l.Parse()
+
+		assert.NoError(t, err)
+		assert.Equal(t, operation.Mutation, s.Type)
+		assert.Equal(t, "ReviseTopicSummaries", s.Selections["ReviseTopicSummaries"].Name)
+	})
+
 	t.Run("json introspection query", func(t *testing.T) {
 		l := Lexer{input: "\n    query IntrospectionQuery {\n      __schema {\n        \n        queryType { name kind }\n        mutationType { name kind }\n        subscriptionType { name kind }\n        types {\n          ...FullType\n        }\n        directives {\n          name\n          description\n          \n          locations\n          args {\n            ...InputValue\n          }\n        }\n      }\n    }\n\n    "}
 		l.Reset()
@@ -258,7 +269,7 @@ func TestParse(t *testing.T) {
 
 		s, err := l.Parse()
 
-		assert.Error(t, err)  // TODO: handle query-like user input
+		assert.Error(t, err) // TODO: handle query-like input
 		assert.Equal(t, operation.Mutation, s.Type)
 		assert.Equal(t, "CreateDraftStoryV2", s.Selections["CreateDraftStoryV2"].Name)
 	})

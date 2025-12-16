@@ -39,7 +39,7 @@ func (l *Lexer) parseArgument() (argument token.Argument, err error) {
 		argument.ObjectValue = subArg
 	} else if value, err := l.parseString(); err == nil {
 		argument.Value = value
-	} else if value, err := l.parseText(); err == nil {
+	} else if value, err := l.parseArray(); err == nil {
 		argument.Value = value
 	} else {
 		value, err := l.parseOtherAsString()
