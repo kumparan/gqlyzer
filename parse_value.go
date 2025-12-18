@@ -36,8 +36,6 @@ func (l *Lexer) parseString() (value string, err error) {
 	l.cursor++
 	c, err = l.read()
 	for err == nil &&
-		!isWhitespace(c) &&
-		c != '\'' &&
 		c != '"' {
 		l.push(c)
 		l.cursor++
@@ -56,4 +54,47 @@ func (l *Lexer) parseString() (value string, err error) {
 
 	l.cursor++
 	return `"` + content + `"`, nil
+}
+
+// TODO: handle query like user input, or contains ]
+func (l *Lexer) parseArray() (value string, err error) {
+	c, err := l.read()
+	if err != nil {
+		return
+	}
+
+	if c == '[' {
+		l.push(c)
+	} else {
+		err = errors.New("value is not an array")
+		return
+	}
+
+	l.pushFlush()
+	l.cursor++
+	c, err = l.read()
+	for err == nil && c != ']' {
+		l.push(c)
+		l.cursor++
+		c, err = l.read()
+	}
+
+	l.cursor++
+	c, err = l.read()
+	if err != nil {
+		return
+	}
+
+	content, err := l.popFlush()
+	if err != nil {
+		return
+	}
+
+	if l.pop() != '[' {
+		err = errors.New("no " + string(c) + " found")
+		return
+	}
+
+	l.cursor++
+	return `[` + content + `]`, nil
 }

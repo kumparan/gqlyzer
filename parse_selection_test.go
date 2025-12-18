@@ -70,7 +70,7 @@ func TestParseSelectionSet(t *testing.T) {
 
 		_, err := l.parseSelectionSet()
 
-		assert.Error(t, err)
+		assert.NoError(t, err) // existing real cases such as directives is valid with the assumed incorrect separator
 	})
 
 	t.Run("with nested value", func(t *testing.T) {
