@@ -1,6 +1,7 @@
 package gqlyzer
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/kumparan/gqlyzer/token/operation"
@@ -273,4 +274,319 @@ func TestParse(t *testing.T) {
 		assert.Equal(t, operation.Mutation, s.Type)
 		assert.Equal(t, "CreateDraftStoryV2", s.Selections["CreateDraftStoryV2"].Name)
 	})
+}
+
+func TestErrEOF_HasExpectedMessage(t *testing.T) {
+	// The string "end of file" must not change: callers that still
+	// compare err.Error() directly must not break.
+	assert.Equal(t, "end of file", ErrEOF.Error())
+}
+
+func TestErrEOF_WorksWithErrorsIs(t *testing.T) {
+	// Wrapping via fmt.Errorf %w must still be detectable.
+	// This verifies the sentinel value is stable (same pointer),
+	// so errors.Is works even when err is wrapped downstream.
+	wrapped := ErrEOF // direct identity
+	assert.True(t, errors.Is(wrapped, ErrEOF))
+}
+
+func TestErrEOF_SameSentinelReturnedEveryTime(t *testing.T) {
+	// read() must return the exact sentinel each time, not a fresh
+	// errors.New. If it returned a new value every call, errors.Is
+	// would fail for callers who capture an earlier return.
+	l := Lexer{input: ""}
+	l.Reset()
+	_, err1 := l.read()
+	_, err2 := l.read()
+	assert.Same(t, err1, err2, "read() must return the same ErrEOF sentinel on every call")
+}
+
+// =============================================================
+// read() is a non-consuming peek
+// =============================================================
+
+func TestRead_OnEmptyInput_ReturnsErrEOF(t *testing.T) {
+	l := Lexer{input: ""}
+	l.Reset()
+	_, err := l.read()
+	assert.True(t, errors.Is(err, ErrEOF))
+}
+
+func TestRead_ReturnsCorrectRune(t *testing.T) {
+	l := Lexer{input: "q"}
+	l.Reset()
+	c, err := l.read()
+	assert.NoError(t, err)
+	assert.Equal(t, 'q', c)
+}
+
+func TestRead_DoesNotAdvanceCursor(t *testing.T) {
+	// Calling read() twice without advancing must return the same rune.
+	l := Lexer{input: "ab"}
+	l.Reset()
+	c1, _ := l.read()
+	c2, _ := l.read()
+	assert.Equal(t, 'a', c1)
+	assert.Equal(t, 'a', c2, "read() must be a pure peek — calling twice must return the same rune")
+}
+
+func TestParseOperationType_EmptyInput_ReturnsNilError(t *testing.T) {
+	l := Lexer{input: ""}
+	l.Reset()
+	_, _, err := l.parseOperationType()
+	assert.NoError(t, err, "EOF on empty input must be suppressed — not a real parse error")
+}
+
+func TestParseOperationType_EmptyInput_DoesNotReturnErrEOF(t *testing.T) {
+	l := Lexer{input: ""}
+	l.Reset()
+	_, _, err := l.parseOperationType()
+	assert.False(t, errors.Is(err, ErrEOF), "ErrEOF must not reach the caller for empty input")
+}
+
+func TestParseOperationType_WhitespaceOnly_ReturnsNilError(t *testing.T) {
+	l := Lexer{input: "   \n\t  "}
+	l.Reset()
+	_, _, err := l.parseOperationType()
+	assert.NoError(t, err, "whitespace-only input is not a parse error")
+}
+
+func TestParseOperationType_EmptyInput_ReturnsZeroValues(t *testing.T) {
+	l := Lexer{input: ""}
+	l.Reset()
+	op, isAnon, err := l.parseOperationType()
+	assert.NoError(t, err)
+	assert.Equal(t, operation.Type(""), op)
+	assert.False(t, isAnon)
+}
+
+func TestParseOperationType_Query(t *testing.T) {
+	l := Lexer{input: "query"}
+	l.Reset()
+	op, isAnon, err := l.parseOperationType()
+	assert.NoError(t, err)
+	assert.Equal(t, operation.Query, op)
+	assert.False(t, isAnon)
+}
+
+func TestParseOperationType_Mutation(t *testing.T) {
+	l := Lexer{input: "mutation"}
+	l.Reset()
+	op, isAnon, err := l.parseOperationType()
+	assert.NoError(t, err)
+	assert.Equal(t, operation.Mutation, op)
+	assert.False(t, isAnon)
+}
+
+func TestParseOperationType_Subscription(t *testing.T) {
+	l := Lexer{input: "subscription"}
+	l.Reset()
+	op, isAnon, err := l.parseOperationType()
+	assert.NoError(t, err)
+	assert.Equal(t, operation.Subscription, op)
+	assert.False(t, isAnon)
+}
+
+func TestParseOperationType_OpenBrace_ReturnsQueryAndIsAnonymous(t *testing.T) {
+	l := Lexer{input: "{"}
+	l.Reset()
+	op, isAnon, err := l.parseOperationType()
+	assert.NoError(t, err)
+	assert.Equal(t, operation.Query, op)
+	assert.True(t, isAnon)
+}
+
+func TestParseOperationType_OpenBrace_AdvancesCursorPastBrace(t *testing.T) {
+	l := Lexer{input: "{ field }"}
+	l.Reset()
+	_, _, err := l.parseOperationType()
+	assert.NoError(t, err)
+	assert.Equal(t, 1, l.cursor, "cursor must be at 1 (past '{') after parseOperationType")
+}
+
+func TestParseOperationType_OpenBrace_NextReadIsNotOpenBrace(t *testing.T) {
+	// Concrete regression: after parseOperationType consumes '{',
+	// the very next read() must not return '{' again.
+	l := Lexer{input: "{ field }"}
+	l.Reset()
+	_, _, _ = l.parseOperationType()
+	c, _ := l.read()
+	assert.NotEqual(t, '{', c, "cursor not advanced past '{': double-read bug still present")
+}
+
+func TestParseOperation_EmptyInput_ReturnsNilError(t *testing.T) {
+	l := Lexer{input: ""}
+	l.Reset()
+	_, err := l.parseOperation()
+	assert.NoError(t, err, "empty input must not produce an error from parseOperation")
+}
+
+func TestParseOperation_EmptyInput_DoesNotReturnErrEOF(t *testing.T) {
+	l := Lexer{input: ""}
+	l.Reset()
+	_, err := l.parseOperation()
+	assert.False(t, errors.Is(err, ErrEOF), "ErrEOF must not leak from parseOperation for empty input")
+}
+
+func TestParseOperation_EmptyInput_ReturnsZeroOperation(t *testing.T) {
+	l := Lexer{input: ""}
+	l.Reset()
+	op, err := l.parseOperation()
+	assert.NoError(t, err)
+	assert.Equal(t, operation.Type(""), op.Type)
+	assert.Equal(t, "", op.Name)
+}
+
+func TestParseOperation_WhitespaceOnly_ReturnsNilError(t *testing.T) {
+	l := Lexer{input: "   \n   "}
+	l.Reset()
+	_, err := l.parseOperation()
+	assert.NoError(t, err)
+}
+
+func TestParse_EmptyInput_ReturnsNilError(t *testing.T) {
+	l := New("")
+	_, err := l.Parse()
+	assert.NoError(t, err, "Parse(\"\") must not return an error")
+}
+
+func TestParse_EmptyInput_ReturnsZeroOperation(t *testing.T) {
+	l := New("")
+	op, err := l.Parse()
+	assert.NoError(t, err)
+	assert.Equal(t, operation.Type(""), op.Type)
+	assert.Equal(t, "", op.Name)
+}
+
+func TestParse_WhitespaceOnly_ReturnsNilError(t *testing.T) {
+	l := New("   \n   ")
+	_, err := l.Parse()
+	assert.NoError(t, err)
+}
+
+func TestParse_AnonymousQuery_TypeIsQuery(t *testing.T) {
+	l := New(`{
+	IniQuery(id: "1")
+}`)
+	op, err := l.Parse()
+	assert.NoError(t, err)
+	assert.Equal(t, operation.Query, op.Type)
+}
+
+func TestParse_AnonymousQuery_SelectionsPresent(t *testing.T) {
+	l := New(`{
+	IniQuery(id: "1")
+}`)
+	op, err := l.Parse()
+	assert.NoError(t, err)
+	assert.Equal(t, "IniQuery", op.Selections["IniQuery"].Name)
+}
+
+func TestParse_QueryKeywordNoName_TypeIsQuery(t *testing.T) {
+	l := New("query {\n IniQuery(userID: \"19\")\n}")
+	op, err := l.Parse()
+	assert.NoError(t, err)
+	assert.Equal(t, operation.Query, op.Type)
+	assert.Equal(t, "IniQuery", op.Selections["IniQuery"].Name)
+}
+
+func TestParse_QueryKeywordWithName_ReturnsName(t *testing.T) {
+	l := New("query iniOperationName {\n IniQuery(id: \"19\")\n}")
+	op, err := l.Parse()
+	assert.NoError(t, err)
+	assert.Equal(t, operation.Query, op.Type)
+	assert.Equal(t, "iniOperationName", op.Name)
+	assert.Equal(t, "IniQuery", op.Selections["IniQuery"].Name)
+}
+
+func TestParse_MutationKeyword_TypeIsMutation(t *testing.T) {
+	l := New("mutation {\n CreateUser(name: \"test\")\n}")
+	op, err := l.Parse()
+	assert.NoError(t, err)
+	assert.Equal(t, operation.Mutation, op.Type)
+}
+
+func TestParse_MutationWithName_ReturnsName(t *testing.T) {
+	l := New("mutation AddObject($id: ID!) {\n AddObjectToProfile(id: $id)\n}")
+	op, err := l.Parse()
+	assert.NoError(t, err)
+	assert.Equal(t, operation.Mutation, op.Type)
+	assert.Equal(t, "AddObject", op.Name)
+}
+
+func TestParse_QueryWithVariables_ParsesNameAndSelections(t *testing.T) {
+	l := New("query iniOperationName(\n$objectID: ID!\n$userID: ID!\n) {\nIniQuerySatu(\n\tobjectID: $objectID\n)\nIniQueryDua(\n\tuserID: $userID\n)\n}")
+	op, err := l.Parse()
+	assert.NoError(t, err)
+	assert.Equal(t, operation.Query, op.Type)
+	assert.Equal(t, "iniOperationName", op.Name)
+	assert.Equal(t, "IniQuerySatu", op.Selections["IniQuerySatu"].Name)
+	assert.Equal(t, "IniQueryDua", op.Selections["IniQueryDua"].Name)
+}
+
+func TestParseOperationType_Public_EmptyInput_ReturnsNilError(t *testing.T) {
+	l := New("")
+	_, err := l.ParseOperationType()
+	assert.NoError(t, err, "ParseOperationType on empty input must not return an error")
+}
+
+func TestParseOperationType_Public_EmptyInput_ReturnsEmptyType(t *testing.T) {
+	l := New("")
+	ot, err := l.ParseOperationType()
+	assert.NoError(t, err)
+	assert.Equal(t, operation.Type(""), ot)
+}
+
+func TestParseOperationType_Public_Query(t *testing.T) {
+	l := New("query { field }")
+	ot, err := l.ParseOperationType()
+	assert.NoError(t, err)
+	assert.Equal(t, operation.Query, ot)
+}
+
+func TestParseOperationType_Public_Mutation(t *testing.T) {
+	l := New("mutation { createUser }")
+	ot, err := l.ParseOperationType()
+	assert.NoError(t, err)
+	assert.Equal(t, operation.Mutation, ot)
+}
+
+func TestParseOperationType_Public_Subscription(t *testing.T) {
+	l := New("subscription { onUpdate }")
+	ot, err := l.ParseOperationType()
+	assert.NoError(t, err)
+	assert.Equal(t, operation.Subscription, ot)
+}
+
+func TestParseOperationType_Public_AnonymousQuery(t *testing.T) {
+	l := New("{ field }")
+	ot, err := l.ParseOperationType()
+	assert.NoError(t, err)
+	assert.Equal(t, operation.Query, ot)
+}
+
+func TestParse_NoEOFErrorForAnyValidInput(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+	}{
+		{"empty string", ""},
+		{"whitespace only", "   \n   "},
+		{"anonymous query", "{\n\tIniQuery\n}"},
+		{"query keyword no name", "query {\n\tIniQuery\n}"},
+		{"query keyword with name", "query GetUser {\n\tuser\n}"},
+		{"mutation keyword", "mutation {\n\tcreateUser\n}"},
+		{"mutation with name", "mutation CreateUser {\n\tcreateUser\n}"},
+		{"query with variables", "query GetUser($id: ID!) {\n\tuser\n}"},
+		{"query no name with variables", "query ( $objectID: ID! $userID: ID!\t) {\n IniQuerySatu( objectID: $objectID\n)\n}"},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			l := New(tc.input)
+			_, err := l.Parse()
+			assert.False(t, errors.Is(err, ErrEOF),
+				"Parse(%q): ErrEOF must not leak to the caller", tc.input)
+		})
+	}
 }

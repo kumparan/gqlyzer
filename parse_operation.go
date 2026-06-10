@@ -10,9 +10,12 @@ import (
 func (l *Lexer) parseOperationType() (op operation.Type, isAnonymous bool, err error) {
 	l.consumeWhitespace()
 	l.pushFlush()
-
 	c, err := l.read()
 	if err != nil {
+		// EOF here means the input was empty or all whitespace — not a real error.
+		if errors.Is(err, ErrEOF) {
+			err = nil
+		}
 		return
 	}
 	switch c {
@@ -31,7 +34,8 @@ func (l *Lexer) parseOperationType() (op operation.Type, isAnonymous bool, err e
 			return
 		}
 		return operation.Subscription, false, nil
-	case '{': // anonymous operation returns query type
+	case '{': // anonymous operation — advance past '{' so the caller doesn't see it again
+		l.cursor++
 		return operation.Query, true, nil
 	default: // TODO: parse fragments
 		err = errors.New("unknown definition")
@@ -45,33 +49,57 @@ func (l *Lexer) parseOperation() (op token.Operation, err error) {
 		return
 	}
 
-	op.Type = opType
-
-	// check if query is json anonymous but uses variables
-	l.consumeWhitespace()
-	c, err := l.read()
-	if err != nil {
+	// Empty input — parseOperationType returned empty op and nil err.
+	// Nothing to do; return zero value cleanly.
+	if len(opType) <= 0 && !isAnonymous {
 		return
 	}
 
-	if c == '(' || c == '{' && !isAnonymous { // check anonymous json query doesnt use variable
-		isAnonymous = true
+	op.Type = opType
+
+	if isAnonymous {
+		// cursor already sits after '{'; parseSelectionSet expects to see '{',
+		// so back up one position.
+		l.cursor--
+		op.Selections, err = l.parseSelectionSet()
+		return
 	}
 
-	if !isAnonymous {
-		name, err := l.parseName()
+	// Named operation: check what follows the keyword — a name, '(' (variables),
+	// or '{' (no explicit name, straight to body).
+	l.consumeWhitespace()
+	c, err := l.read()
+	if err != nil {
+		// EOF immediately after keyword with no body is a real mid-parse error.
+		return
+	}
+
+	if c == '{' {
+		// Keyword with no name, e.g.  query { ... }
+		// Do NOT advance; parseSelectionSet needs to see '{'.
+		op.Selections, err = l.parseSelectionSet()
+		return
+	}
+
+	if c != '(' {
+		// There is a name to parse. parseName reads from the current cursor
+		// position, so do NOT advance here.
+		var name string
+		name, err = l.parseName()
 		if err != nil {
 			return token.Operation{}, err
 		}
 		op.Name = name
+		l.consumeWhitespace()
+
+		// Re-read to find out what comes after the name.
+		c, err = l.read()
+		if err != nil {
+			return
+		}
 	}
 
-	c, err = l.read()
-	if err != nil {
-		return
-	}
-
-	// ignore variable of operation
+	// Skip variable definitions:  ( $var: Type, … )
 	if c == '(' {
 		l.cursor++
 		c, err = l.read()
@@ -79,19 +107,15 @@ func (l *Lexer) parseOperation() (op token.Operation, err error) {
 			l.cursor++
 			c, err = l.read()
 		}
-
 		if err != nil {
+			// EOF inside variable list is a real mid-parse error.
 			return
 		}
-
-		l.cursor++
+		l.cursor++ // consume ')'
 		l.consumeWhitespace()
 	}
 
+	// Cursor must now be sitting on '{'.
 	op.Selections, err = l.parseSelectionSet()
-	if err != nil {
-		return
-	}
-
 	return
 }

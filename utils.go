@@ -5,11 +5,15 @@ import (
 	"unicode"
 )
 
+// ErrEOF is returned by read() when the input is exhausted.
+// It is exported so callers can distinguish a clean end-of-input
+// from a real mid-parse failure using errors.Is.
+var ErrEOF = errors.New("end of file")
+
 func isNumber(c rune) bool {
 	if c >= '0' && c <= '9' {
 		return true
 	}
-
 	return false
 }
 
@@ -27,7 +31,7 @@ func (l *Lexer) isEOF() bool {
 
 func (l *Lexer) read() (c rune, err error) {
 	if l.isEOF() {
-		err = errors.New("end of file")
+		err = ErrEOF
 	} else {
 		c = rune(l.input[l.cursor])
 	}
