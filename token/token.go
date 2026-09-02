@@ -1,5 +1,5 @@
 // Package token :nodoc:
-package token
+package token //nolint:revive
 
 import "github.com/kumparan/gqlyzer/token/operation"
 
