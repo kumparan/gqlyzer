@@ -1,9 +1,15 @@
 # gqlyzer
 
+<a name="v1.4.0"></a>
+## [v1.4.0] - 2026-09-02
+### Other Improvements
+- upgrade dependencies resolving vulnerabilities, upgrade go1.26.0
+
+
 <a name="v1.3.3"></a>
-## [v1.3.3] - 2026-06-09
+## [v1.3.3] - 2026-06-10
 ### Fixes
-- fix false EOF errors and cursor bugs in GraphQL lexer
+- fix false EOF errors and cursor bugs in GraphQL lexer ([#5](https://github.com/kumparan/gqlyzer/issues/5))
 
 
 <a name="v1.3.2"></a>
@@ -37,7 +43,8 @@
 <a name="v1.0.0"></a>
 ## v1.0.0 - 2019-09-13
 
-[Unreleased]: https://github.com/kumparan/gqlyzer/compare/v1.3.3...HEAD
+[Unreleased]: https://github.com/kumparan/gqlyzer/compare/v1.4.0...HEAD
+[v1.4.0]: https://github.com/kumparan/gqlyzer/compare/v1.3.3...v1.4.0
 [v1.3.3]: https://github.com/kumparan/gqlyzer/compare/v1.3.2...v1.3.3
 [v1.3.2]: https://github.com/kumparan/gqlyzer/compare/v1.3.1...v1.3.2
 [v1.3.1]: https://github.com/kumparan/gqlyzer/compare/v1.3.0...v1.3.1
