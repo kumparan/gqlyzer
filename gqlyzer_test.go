@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -1104,42 +1105,87 @@ func TestReset_IsANoOp(t *testing.T) {
 // Production corpus
 // =====================================================================
 
-// TestParse_ProductionCorpus replays real queries captured in production.
-// Every one of them is valid GraphQL and every one of them failed on the
-// hand-written lexer.
-func TestParse_ProductionCorpus(t *testing.T) {
-	const path = "testdata/queries.csv"
+// anonymizedCorpus is committed, so CI always exercises it. It holds a small
+// and a large query for each distinct syntax shape found in a capture of
+// production traffic, with nothing of production left in it: every string
+// literal's contents and every identifier — operation names, fields, aliases,
+// arguments, variables, types, fragments and enum values — were replaced.
+// Only GraphQL's own __introspection names and the built-in scalars survive.
+//
+// What is preserved is each query's layout, byte for byte: one-line queries,
+// inline sub-selections, escaped quotes, odd indentation. Layout is what the
+// hand-written lexer got wrong, so layout is what the corpus has to keep. All
+// of these still fail on v1, across all three of its error classes.
+const anonymizedCorpus = "testdata/queries_anonymized.csv"
+
+// fullCorpus is the unedited capture. It stays out of version control (see
+// .gitignore) because it carries real content. Drop it in to run the whole
+// capture locally.
+const fullCorpus = "testdata/queries_anonymized.csv"
+
+// TestParse_AnonymizedCorpus replays the committed corpus. Every query in it
+// is valid GraphQL, and every one of them failed on the hand-written lexer.
+// This test must never skip: it is the standing guard for this change.
+func TestParse_AnonymizedCorpus(t *testing.T) {
+	queries := readCorpus(t, anonymizedCorpus, true)
+	require.GreaterOrEqual(t, len(queries), 15, "corpus must keep meaningful coverage")
+	parseAll(t, queries, anonymizedCorpus)
+}
+
+// TestParse_FullProductionCorpus runs the unedited capture when present.
+func TestParse_FullProductionCorpus(t *testing.T) {
+	queries := readCorpus(t, fullCorpus, false)
+	if queries == nil {
+		t.Skipf("%s not present; drop the capture in to run it locally", fullCorpus)
+	}
+	parseAll(t, queries, fullCorpus)
+}
+
+// readCorpus reads a corpus CSV. When required is false, a missing file
+// returns nil instead of failing the test.
+func readCorpus(t *testing.T, path string, required bool) []string {
+	t.Helper()
 
 	f, err := os.Open(path)
-	if os.IsNotExist(err) {
-		t.Skipf("corpus not present at %s", path)
+	if os.IsNotExist(err) && !required {
+		return nil
 	}
-	require.NoError(t, err)
+	require.NoErrorf(t, err, "opening %s", path)
 	defer f.Close() //nolint:errcheck // read-only
 
 	r := csv.NewReader(f)
 	r.FieldsPerRecord = -1
-	rows, err := r.ReadAll()
+	records, err := r.ReadAll()
 	require.NoError(t, err)
-	require.Greater(t, len(rows), 1, "corpus must hold at least one query")
+	require.Greaterf(t, len(records), 1, "%s must hold at least one query", path)
+
+	queries := make([]string, 0, len(records)-1)
+	for _, rec := range records[1:] { // skip the header
+		if len(rec) > 0 && strings.TrimSpace(rec[0]) != "" {
+			queries = append(queries, rec[0])
+		}
+	}
+
+	return queries
+}
+
+func parseAll(t *testing.T, queries []string, path string) {
+	t.Helper()
 
 	parsed := 0
-	for i, row := range rows[1:] { // skip the header
-		if len(row) == 0 || strings.TrimSpace(row[0]) == "" {
+	for i, q := range queries {
+		op, err := NewWithOptions(q, Options{MaxTokenLimit: -1}).Parse()
+		if !assert.NoErrorf(t, err, "%s row %d: %.120s", path, i+2, q) {
 			continue
 		}
-
-		op, err := NewWithOptions(row[0], Options{MaxTokenLimit: -1}).Parse()
-		if !assert.NoErrorf(t, err, "row %d: %.120s", i+2, row[0]) {
-			continue
-		}
-		assert.NotEmptyf(t, op.Type, "row %d: operation type must be set", i+2)
-		assert.NotEmptyf(t, op.Selections, "row %d: selections must not be empty", i+2)
+		assert.NotEmptyf(t, op.Type, "%s row %d: operation type must be set", path, i+2)
+		assert.NotEmptyf(t, op.Selections, "%s row %d: selections must not be empty", path, i+2)
+		assert.Emptyf(t, op.UnresolvedFragments, "%s row %d: every spread should resolve", path, i+2)
 		parsed++
 	}
 
-	assert.Equal(t, len(rows)-1, parsed, "every corpus row must parse")
-	t.Logf("parsed %d/%d corpus queries", parsed, len(rows)-1)
+	assert.Equalf(t, len(queries), parsed, "every row of %s must parse", path)
+	t.Logf("parsed %d/%d queries from %s", parsed, len(queries), path)
 }
 
 // topLevelNames returns the names in a selection set, sorted, so that
@@ -1152,4 +1198,154 @@ func topLevelNames(set token.SelectionSet) []string {
 	sort.Strings(names)
 
 	return names
+}
+
+// =====================================================================
+// Regressions for the findings raised in review of this change
+// =====================================================================
+
+// Finding 2: a mistyped OperationName used to yield a zero Operation and a
+// nil error, which reads as "this query selects nothing" — harmless-looking
+// when it is in fact a failure.
+func TestOperationName_NotFound_ReturnsError(t *testing.T) {
+	cases := []struct{ name, doc string }{
+		{"document has other operations", "query First { a }"},
+		{"document has no operation at all", "fragment F on T { id }"},
+		{"empty document", ""},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			l := NewWithOptions(tc.doc, Options{OperationName: "Nope"})
+
+			_, err := l.Parse()
+			require.Error(t, err)
+			assert.ErrorIs(t, err, ErrOperationNotFound)
+			assert.Contains(t, err.Error(), "Nope")
+
+			_, err = l.ParseOperationType()
+			require.Error(t, err)
+			assert.ErrorIs(t, err, ErrOperationNotFound)
+		})
+	}
+}
+
+// Finding 3: ParseOperationType ignored OperationName, so the two methods on
+// one Lexer disagreed — the cheap type check said QUERY while Parse returned
+// the MUTATION the caller had asked for.
+func TestOperationName_TypeAgreesWithParse(t *testing.T) {
+	const doc = "query First { a }\nmutation Second { b }\nsubscription Third { c }"
+
+	for _, want := range []struct {
+		opName string
+		typ    operation.Type
+	}{
+		{"First", operation.Query},
+		{"Second", operation.Mutation},
+		{"Third", operation.Subscription},
+	} {
+		t.Run(want.opName, func(t *testing.T) {
+			l := NewWithOptions(doc, Options{OperationName: want.opName})
+
+			ot, err := l.ParseOperationType()
+			require.NoError(t, err)
+			op, err := l.Parse()
+			require.NoError(t, err)
+
+			assert.Equal(t, want.typ, ot)
+			assert.Equal(t, ot, op.Type, "the two methods must agree")
+			assert.Equal(t, want.opName, op.Name)
+		})
+	}
+}
+
+// Finding 4: Parse treated a fragments-only document as "no operation, no
+// error" while ParseOperationType called it an unknown definition.
+func TestParseOperationType_AgreesWithParse(t *testing.T) {
+	cases := []string{
+		"",
+		"   \n\t ",
+		"# just a comment",
+		"fragment F on T { id }",
+		"fragment A on T { id }\nfragment B on T { name }",
+		"query { a }",
+		"mutation M { a }",
+		"subscription S { a }",
+		"{ a }",
+	}
+
+	for _, doc := range cases {
+		t.Run(strings.TrimSpace(doc), func(t *testing.T) {
+			ot, otErr := New(doc).ParseOperationType()
+			op, pErr := New(doc).Parse()
+
+			assert.Equal(t, pErr == nil, otErr == nil,
+				"ParseOperationType err=%v but Parse err=%v", otErr, pErr)
+			assert.Equal(t, op.Type, ot)
+		})
+	}
+}
+
+func TestParseOperationType_StillRejectsGarbage(t *testing.T) {
+	_, err := New("querty { a }").ParseOperationType()
+
+	assert.Error(t, err)
+}
+
+// Finding 5: a spread with no definition in the document was reported as a
+// field, which is the very bug this change set out to remove for fragments
+// that do resolve.
+func TestUnresolvedFragmentSpread_IsNotAField(t *testing.T) {
+	op, err := New("{ a { ...Missing id } }").Parse()
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"id"}, topLevelNames(op.Selections["a"].InnerSelection),
+		"a fragment name must not appear as a field")
+	assert.Equal(t, []string{"Missing"}, op.UnresolvedFragments,
+		"but it must not vanish silently either")
+}
+
+func TestUnresolvedFragmentSpread_Sorted(t *testing.T) {
+	op, err := New("{ a { ...Zeta ...Alpha } b { ...Alpha } }").Parse()
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"Alpha", "Zeta"}, op.UnresolvedFragments)
+}
+
+func TestResolvedFragments_LeaveUnresolvedEmpty(t *testing.T) {
+	op, err := New("{ a { ...F } }\nfragment F on T { id }").Parse()
+
+	require.NoError(t, err)
+	assert.Empty(t, op.UnresolvedFragments)
+	assert.Equal(t, []string{"id"}, topLevelNames(op.Selections["a"].InnerSelection))
+}
+
+// Finding 6: the doc comment claimed a Lexer was unsafe for concurrent use.
+// It is immutable once built. Run with -race to make this meaningful.
+func TestLexer_IsSafeForConcurrentUse(t *testing.T) {
+	l := NewWithOptions(
+		`query Q($id: ID!) { a(id: $id) { b c } }`,
+		Options{OperationName: "Q"},
+	)
+
+	var wg sync.WaitGroup
+	for i := 0; i < 64; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			op, err := l.Parse()
+			assert.NoError(t, err)
+			assert.Equal(t, "Q", op.Name)
+			assert.Equal(t, []string{"a"}, topLevelNames(op.Selections))
+
+			ot, err := l.ParseOperationType()
+			assert.NoError(t, err)
+			assert.Equal(t, operation.Query, ot)
+
+			_, err = l.ParseWithVariables(`{"id": "1"}`)
+			assert.NoError(t, err)
+		}()
+	}
+	wg.Wait()
 }

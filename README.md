@@ -23,8 +23,8 @@ op.Type                                              // "QUERY"
 op.Name                                              // "FindStory"
 op.Selections["FindStoryBySlug"].Arguments["slug"]   // {Key: "slug", Value: "$slug"}
 op.Selections["FindStoryBySlug"].
-    InnerSelection["publisher"].
-    InnerSelection["slug"].Name                      // "slug"
+InnerSelection["publisher"].
+InnerSelection["slug"].Name                      // "slug"
 ```
 
 ## Installation
@@ -114,6 +114,11 @@ Where two branches request the same field, the entries are merged rather
 than overwriting each other. Set `Options.DisableFragmentExpansion` to skip
 fragments instead.
 
+A spread whose definition is missing from the document has nothing to fold
+in. The specification forbids that, and a fragment name is not a field, so
+the name is kept out of `Selections` and reported in
+`Operation.UnresolvedFragments` instead.
+
 ### Errors are no longer swallowed
 
 v1 discarded errors from arguments and sub-selections, and often returned a
@@ -162,7 +167,9 @@ op, err := l.ParseWithVariables(variablesJSON) // resolve $variables
 
 `ParseOperationType` reads only the first significant token, so it stays
 cheap and does not care whether the rest of the document is well formed.
-Use it when routing on query/mutation/subscription is all you need.
+Use it when routing on query/mutation/subscription is all you need. Setting
+`Options.OperationName` makes it parse the whole document to find that
+operation, so it then costs the same as `Parse` and reports the same errors.
 
 `ParseWithVariables` takes the variables as a JSON object and resolves
 references in argument values. A variable the JSON does not mention keeps
@@ -176,7 +183,8 @@ op.Selections["a"].Arguments["size"].Value // "25"
 ```
 
 An empty or whitespace-only document, or one holding only fragment
-definitions, returns a zero `token.Operation` and a `nil` error.
+definitions, returns a zero `token.Operation` and a `nil` error from both
+methods.
 
 ### Options
 
@@ -192,7 +200,7 @@ l := gqlyzer.NewWithOptions(document, gqlyzer.Options{
 | Option | Default | Purpose |
 | --- | --- | --- |
 | `MaxTokenLimit` | 15000 | Caps document size. Negative disables. |
-| `OperationName` | first operation | Selects one operation from a multi-operation document, the way a client's `operationName` does. |
+| `OperationName` | first operation | Selects one operation from a multi-operation document, the way a client's `operationName` does. Naming one the document does not define returns `ErrOperationNotFound` rather than an empty result. |
 | `DisableFragmentExpansion` | `false` | Report fragments as skipped instead of folding them into the parent. |
 | `MaxSelectionNodes` | 50000 | Caps how far fragments may expand. Negative disables. |
 
@@ -213,6 +221,10 @@ type Operation struct {
     Name       string
     Variables  []Parameter
     Selections SelectionSet   // map[string]Selection, keyed by field name
+
+    // Fragments the document spreads but does not define, sorted.
+    // Empty for a well-formed document.
+    UnresolvedFragments []string
 }
 
 type Selection struct {
@@ -242,11 +254,26 @@ asserted something about the old lexer's own cursor rather than about the
 analysis it produced, and the test file lists them and says what replaced
 them.
 
-`TestParse_ProductionCorpus` replays the 211 captured queries from
-`testdata/queries.csv`. That file is **not** in version control, because
-this repository is public and the capture carries real article text and
-real author, publisher and channel IDs. The test skips when the file is
-absent. See `.gitignore`.
+Two corpus tests replay real traffic.
+
+`TestParse_AnonymizedCorpus` runs `testdata/queries_anonymized.csv`, which
+**is** committed, so CI always exercises it. It holds a small and a large
+query for each distinct syntax shape in the capture, with nothing of
+production left in it: every string literal's contents and every identifier —
+operation names, fields, aliases, arguments, variables, types, fragments and
+enum values — were replaced. Only GraphQL's own `__introspection` names and
+the built-in scalars survive.
+
+What it does preserve is each query's layout, byte for byte: one-line
+queries, inline sub-selections, escaped quotes, odd indentation. Layout is
+what v1 got wrong, so layout is what the corpus has to keep. All 19 still
+fail to parse on v1, across all three of its error classes.
+
+`TestParse_FullProductionCorpus` runs the unedited capture from
+`testdata/queries.csv` and skips when it is absent. That file is **not** in
+version control, because this repository is public and the capture carries
+real article text and real author, publisher and channel IDs. See
+`.gitignore`.
 
 ## Limitations
 

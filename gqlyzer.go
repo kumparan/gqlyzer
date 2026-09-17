@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -28,6 +29,12 @@ import (
 // Deprecated: nothing returns this value anymore.
 var ErrEOF = errors.New("end of file")
 
+// ErrOperationNotFound is returned when Options.OperationName names an
+// operation the document does not define. Without it a mistyped name is
+// indistinguishable from a document that selects nothing, which reads as
+// harmless when it is not.
+var ErrOperationNotFound = errors.New("operation not found")
+
 // DefaultMaxTokenLimit bounds how many tokens a single document may contain.
 // It guards against hostile input, since queries usually arrive from outside.
 // Raise it through Options if a legitimate query is ever rejected.
@@ -38,6 +45,9 @@ const DefaultMaxTokenLimit = 15000
 // of the text, so the token limit alone is not enough of a guard.
 const defaultMaxSelectionNodes = 50000
 
+// keywordFragment is the keyword that opens a fragment definition.
+const keywordFragment = "fragment"
+
 // Options tunes parsing. The zero value is the recommended configuration.
 type Options struct {
 	// MaxTokenLimit caps the number of tokens in a document.
@@ -45,8 +55,11 @@ type Options struct {
 	MaxTokenLimit int
 
 	// OperationName selects which operation to return from a document that
-	// holds more than one. Empty means the first operation, which is what
-	// gqlyzer has always done.
+	// holds more than one, the way a client's operationName does. Empty means
+	// the first operation, which is what gqlyzer has always done.
+	//
+	// When the document defines no operation of that name, Parse and
+	// ParseOperationType return ErrOperationNotFound.
 	OperationName string
 
 	// DisableFragmentExpansion stops fragment spreads and inline fragments
@@ -71,9 +84,9 @@ type Options struct {
 
 // Lexer analyzes a single GraphQL document.
 //
-// A Lexer is safe to reuse and its methods may be called more than once; each
-// call re-analyzes the document from the start. It is not safe for concurrent
-// use by multiple goroutines.
+// A Lexer is immutable once built. Its methods may be called more than once
+// and from several goroutines at the same time; each call re-analyzes the
+// document from the start and shares no state with any other call.
 type Lexer struct {
 	input string
 	opts  Options
@@ -103,13 +116,30 @@ func (l *Lexer) Parse() (token.Operation, error) {
 
 // ParseOperationType returns the operation type without walking the body.
 //
-// It reads only the first significant token, so it stays cheap and does not
-// care whether the rest of the document is well formed. An empty or
-// whitespace-only document yields an empty type and a nil error.
+// With no Options.OperationName set it reads only the first significant
+// token, so it stays cheap and does not care whether the rest of the document
+// is well formed. A document with no operation in it — empty, whitespace
+// only, or holding nothing but fragment definitions — yields an empty type
+// and a nil error, matching Parse.
 //
-// Because it stops after that token, Options.OperationName has no effect
-// here: the type reported is always the first operation's.
+// When Options.OperationName is set the document has to be parsed to find
+// that operation, so this costs the same as Parse and reports the same
+// errors, including ErrOperationNotFound.
 func (l *Lexer) ParseOperationType() (operation.Type, error) {
+	if l.opts.OperationName != "" {
+		doc, err := l.parseDocument()
+		if err != nil {
+			return "", err
+		}
+
+		op, err := l.pickOperation(doc)
+		if err != nil || op == nil {
+			return "", err
+		}
+
+		return operationType(op.Operation), nil
+	}
+
 	lex := lexer.New(&ast.Source{Input: l.input})
 
 	for {
@@ -135,6 +165,11 @@ func (l *Lexer) ParseOperationType() (operation.Type, error) {
 				return operation.Mutation, nil
 			case string(ast.Subscription):
 				return operation.Subscription, nil
+			case keywordFragment:
+				// A document that leads with a fragment definition declares no
+				// operation. Parse reports that as a zero value and a nil
+				// error; report it the same way here.
+				return "", nil
 			}
 		}
 
@@ -164,7 +199,10 @@ func (l *Lexer) parse(vars map[string]any) (token.Operation, error) {
 		return token.Operation{}, err
 	}
 
-	op := l.pickOperation(doc)
+	op, err := l.pickOperation(doc)
+	if err != nil {
+		return token.Operation{}, err
+	}
 	if op == nil {
 		return token.Operation{}, nil
 	}
@@ -186,11 +224,20 @@ func (l *Lexer) parse(vars map[string]any) (token.Operation, error) {
 	w := &walker{
 		fragments:      doc.Fragments,
 		vars:           vars,
+		unresolved:     map[string]bool{},
 		expandFragment: !l.opts.DisableFragmentExpansion,
 		budget:         budget,
 		unlimited:      budget < 0,
 	}
 	result.Selections = w.selectionSet(op.SelectionSet, map[string]bool{})
+
+	if len(w.unresolved) > 0 {
+		result.UnresolvedFragments = make([]string, 0, len(w.unresolved))
+		for name := range w.unresolved {
+			result.UnresolvedFragments = append(result.UnresolvedFragments, name)
+		}
+		sort.Strings(result.UnresolvedFragments)
+	}
 
 	return result, nil
 }
@@ -212,16 +259,27 @@ func (l *Lexer) parseDocument() (*ast.QueryDocument, error) {
 	return doc, nil
 }
 
-func (l *Lexer) pickOperation(doc *ast.QueryDocument) *ast.OperationDefinition {
+// pickOperation returns the operation the options ask for. A nil operation
+// with a nil error means the document declares none, which is not a failure.
+func (l *Lexer) pickOperation(doc *ast.QueryDocument) (*ast.OperationDefinition, error) {
 	if doc == nil || len(doc.Operations) == 0 {
-		return nil
+		if l.opts.OperationName != "" {
+			return nil, fmt.Errorf("%w: %q", ErrOperationNotFound, l.opts.OperationName)
+		}
+
+		return nil, nil
 	}
 
 	if l.opts.OperationName == "" {
-		return doc.Operations[0]
+		return doc.Operations[0], nil
 	}
 
-	return doc.Operations.ForName(l.opts.OperationName)
+	op := doc.Operations.ForName(l.opts.OperationName)
+	if op == nil {
+		return nil, fmt.Errorf("%w: %q", ErrOperationNotFound, l.opts.OperationName)
+	}
+
+	return op, nil
 }
 
 func operationType(op ast.Operation) operation.Type {
@@ -241,6 +299,7 @@ func operationType(op ast.Operation) operation.Type {
 type walker struct {
 	fragments      ast.FragmentDefinitionList
 	vars           map[string]any
+	unresolved     map[string]bool
 	expandFragment bool
 	budget         int
 	unlimited      bool
@@ -280,10 +339,12 @@ func (w *walker) collect(set token.SelectionSet, sels ast.SelectionSet, activeFr
 			}
 			def := w.fragments.ForName(s.Name)
 			if def == nil {
-				// A spread whose definition is not in this document. There is
-				// nothing to expand, so record the name as a selection rather
-				// than dropping it silently.
-				w.mergeSelection(set, token.Selection{Name: s.Name})
+				// The document spreads a fragment it does not define, which
+				// the specification's "fragment spread target defined" rule
+				// forbids. A fragment name is not a field, so it must not go
+				// into the selection set; report it separately instead of
+				// dropping it silently.
+				w.unresolved[s.Name] = true
 				continue
 			}
 

@@ -14,3 +14,10 @@
 # Dependency directories (remove the comment below to include it)
 # vendor/
 .idea
+# Unedited production query capture used by TestParse_FullProductionCorpus.
+#
+# Left untracked on purpose: this repository is public and the capture carries
+# real article text and real author, publisher and channel IDs. The committed
+# stand-in is testdata/queries_anonymized.csv, which keeps every query's
+# layout but replaces the contents of its string literals.
+testdata/queries_anonymized.csv
