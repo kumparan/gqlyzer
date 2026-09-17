@@ -1121,7 +1121,7 @@ const anonymizedCorpus = "testdata/queries_anonymized.csv"
 // fullCorpus is the unedited capture. It stays out of version control (see
 // .gitignore) because it carries real content. Drop it in to run the whole
 // capture locally.
-const fullCorpus = "testdata/queries_anonymized.csv"
+const fullCorpus = "testdata/queries.csv"
 
 // TestParse_AnonymizedCorpus replays the committed corpus. Every query in it
 // is valid GraphQL, and every one of them failed on the hand-written lexer.
