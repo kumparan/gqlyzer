@@ -1,5 +1,3 @@
-github.com/kumparan/gqlyzer v1.4.0 h1:7Lhi0JI1xaqStQV7DVKdydXa0VF0q/VEj25V3fAjnPU=
-github.com/kumparan/gqlyzer v1.4.0/go.mod h1:Rnc3zjEVNulkwwVHAWJEIiq3l02K7q7oxWYXKiWhM5M=
 github.com/stretchr/testify v1.12.1 h1:EuwCh5fleGS7H32xRwO3wRGT7DxrDhLAT6FF8MpWDWE=
 github.com/stretchr/testify v1.12.1/go.mod h1:MDEgiDPPsNp5cuIrHPPCyornHKgEVbtFUmoNlxoYthg=
 github.com/vektah/gqlparser/v2 v2.5.37 h1:jbb1Ilv+xBklV6653tKb4oVUupPNTLb5LmrnBKVI12Y=
