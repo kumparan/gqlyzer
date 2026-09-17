@@ -1,20 +1,28 @@
 package gqlyzer
 
 import (
+	"encoding/csv"
 	"errors"
+	"os"
+	"sort"
+	"strconv"
+	"strings"
 	"testing"
+	"time"
 
-	"github.com/kumparan/gqlyzer/token/operation"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/kumparan/gqlyzer/v2/token"
+	"github.com/kumparan/gqlyzer/v2/token/operation"
 )
 
 func TestParseWithVariable(t *testing.T) {
-	l := Lexer{input: `query SomeOperation {
+	l := New(`query SomeOperation {
 			SomeQuery(id: $id) {
 				subQuery
 			}
-		}`}
-	l.Reset()
+		}`)
 	s, err := l.ParseWithVariables(`
 		{
 			"id": "danu"
@@ -32,15 +40,14 @@ func TestParseWithVariable(t *testing.T) {
 
 func TestParse(t *testing.T) {
 	t.Run("anonymous graphql query", func(t *testing.T) {
-		l := Lexer{input: `{
+		l := New(`{
 	  IniQuerySatu(
 	    id: "aya" object: USER
 	  )
 	  IniQueryDua(
 	    id: "aya" object: USER
 	  )
-	}`}
-		l.Reset()
+	}`)
 
 		s, err := l.Parse()
 
@@ -51,15 +58,14 @@ func TestParse(t *testing.T) {
 	})
 
 	t.Run("graphql query without variable", func(t *testing.T) {
-		l := Lexer{input: `query iniOperationName {
+		l := New(`query iniOperationName {
 	  IniQuerySatu(
 	    id: "aya" object: USER
 	  )
 	  IniQueryDua(
 	    id: "aya" object: USER
 	  )
-	}`}
-		l.Reset()
+	}`)
 
 		s, err := l.Parse()
 
@@ -70,7 +76,7 @@ func TestParse(t *testing.T) {
 	})
 
 	t.Run("graphql query with variable", func(t *testing.T) {
-		l := Lexer{input: `query iniOperationName(
+		l := New(`query iniOperationName(
 	$objectID: ID!
 	$userID: ID!
 	$objectType: ObjectType!
@@ -83,8 +89,7 @@ func TestParse(t *testing.T) {
 		userID: $userID
 		objectType: $objectType
 	)
-	}`}
-		l.Reset()
+	}`)
 
 		s, err := l.Parse()
 
@@ -96,8 +101,7 @@ func TestParse(t *testing.T) {
 	})
 
 	t.Run("json without opName, with var", func(t *testing.T) {
-		l := Lexer{input: "query ( $objectID: ID! $userID: ID! $objectType: ObjectType!\t) {\n IniQuerySatu( objectID: $objectID\n objectType: $objectType )\n IniQueryDua( userID: $userID\n objectType: $objectType )\n}"}
-		l.Reset()
+		l := New("query ( $objectID: ID! $userID: ID! $objectType: ObjectType!\t) {\n IniQuerySatu( objectID: $objectID\n objectType: $objectType )\n IniQueryDua( userID: $userID\n objectType: $objectType )\n}")
 
 		s, err := l.Parse()
 
@@ -108,8 +112,7 @@ func TestParse(t *testing.T) {
 	})
 
 	t.Run("json with opName, with var", func(t *testing.T) {
-		l := Lexer{input: "query iniOperationName( $objectID: ID! $userID: ID! $objectType: ObjectType!) {\n IniQuerySatu( objectID: $objectID\n objectType: $objectType )\n IniQueryDua( userID: $userID\n objectType: $objectType )\n}\n"}
-		l.Reset()
+		l := New("query iniOperationName( $objectID: ID! $userID: ID! $objectType: ObjectType!) {\n IniQuerySatu( objectID: $objectID\n objectType: $objectType )\n IniQueryDua( userID: $userID\n objectType: $objectType )\n}\n")
 
 		s, err := l.Parse()
 
@@ -121,8 +124,7 @@ func TestParse(t *testing.T) {
 	})
 
 	t.Run("json with opName, without var", func(t *testing.T) {
-		l := Lexer{input: "query iniOperationName {\n IniQuerySatu(id: \"19\", object: USER)}"}
-		l.Reset()
+		l := New("query iniOperationName {\n IniQuerySatu(id: \"19\", object: USER)}")
 
 		s, err := l.Parse()
 
@@ -133,8 +135,7 @@ func TestParse(t *testing.T) {
 	})
 
 	t.Run("json with opName, without var, with fragments", func(t *testing.T) {
-		l := Lexer{input: "query iniOperationName {\n  IniQuerySatu {\n    ...FragmentExample\n    __typename\n  }\n}"}
-		l.Reset()
+		l := New("query iniOperationName {\n  IniQuerySatu {\n    ...FragmentExample\n    __typename\n  }\n}")
 
 		s, err := l.Parse()
 
@@ -145,8 +146,7 @@ func TestParse(t *testing.T) {
 	})
 
 	t.Run("json without opName, without var", func(t *testing.T) {
-		l := Lexer{input: "query {\n IniQuerySatu(userID: \"19\", objectType: USER )\n IniQueryDua(userID: \"19\", objectType: USER )\n}"}
-		l.Reset()
+		l := New("query {\n IniQuerySatu(userID: \"19\", objectType: USER )\n IniQueryDua(userID: \"19\", objectType: USER )\n}")
 
 		s, err := l.Parse()
 
@@ -157,8 +157,7 @@ func TestParse(t *testing.T) {
 	})
 
 	t.Run("json with opName, with var, with alias", func(t *testing.T) {
-		l := Lexer{input: "query iniOperationName($id: ID!) {\n  iniQueryAliasSatu: IniQuerySatu(id: $id) {\n    ...ItemDetails\n  }\n}\n\nfragment ItemDetails on Item {\n  ...BasicInfo\n  price\n}\n\nfragment BasicInfo on Item {\n  id\n  name\n}"}
-		l.Reset()
+		l := New("query iniOperationName($id: ID!) {\n  iniQueryAliasSatu: IniQuerySatu(id: $id) {\n    ...ItemDetails\n  }\n}\n\nfragment ItemDetails on Item {\n  ...BasicInfo\n  price\n}\n\nfragment BasicInfo on Item {\n  id\n  name\n}")
 
 		s, err := l.Parse()
 
@@ -170,8 +169,7 @@ func TestParse(t *testing.T) {
 	})
 
 	t.Run("json with opName, without var, with alias", func(t *testing.T) {
-		l := Lexer{input: "query iniOperationName {\n  iniQueryAliasSatu: IniQuerySatu {\n    ...FragmentExample\n    __typename\n  }\n}"}
-		l.Reset()
+		l := New("query iniOperationName {\n  iniQueryAliasSatu: IniQuerySatu {\n    ...FragmentExample\n    __typename\n  }\n}")
 
 		s, err := l.Parse()
 
@@ -183,8 +181,7 @@ func TestParse(t *testing.T) {
 	})
 
 	t.Run("json with opname, with var, with alias, with object value arg", func(t *testing.T) {
-		l := Lexer{input: "query iniOperationName($objectID: ID! $userID: ID! $objectType: ObjectType!) {\n\t\tiniQueryAliasSatu: IniQuerySatu(objectID: $objectID, userID: $userID, objectType: $objectType, filter: {\n\t\t\tiniObjectValueArgument: false\n\t\t\tiniJuga: $iniJuga\n\t\t}) {\n\t\t\tedges {\n\t\t\t\tid\n\t\t\t\ttitle\n\t\t\t\tpublisher {\n\t\t\t\t\tslug\n\t\t\t\t}\n\t\t\t\tauthor {\n\t\t\t\t\tusername\n\t\t\t\t}\n\t\t\t\tvideo {\n\t\t\t\t\tid\n\t\t\t\t\tduration\n\t\t\t\t\torientation\n\t\t\t\t\tposterMedia {\n\t\t\t\t\t\texternalURL\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t\tcaption {\n\t\t\t\t\tdocument\n\t\t\t\t}\n\t\t\t\tcreatedAt\n\t\t\t}\n\t\t}\n\t}"}
-		l.Reset()
+		l := New("query iniOperationName($objectID: ID! $userID: ID! $objectType: ObjectType!) {\n\t\tiniQueryAliasSatu: IniQuerySatu(objectID: $objectID, userID: $userID, objectType: $objectType, filter: {\n\t\t\tiniObjectValueArgument: false\n\t\t\tiniJuga: $iniJuga\n\t\t}) {\n\t\t\tedges {\n\t\t\t\tid\n\t\t\t\ttitle\n\t\t\t\tpublisher {\n\t\t\t\t\tslug\n\t\t\t\t}\n\t\t\t\tauthor {\n\t\t\t\t\tusername\n\t\t\t\t}\n\t\t\t\tvideo {\n\t\t\t\t\tid\n\t\t\t\t\tduration\n\t\t\t\t\torientation\n\t\t\t\t\tposterMedia {\n\t\t\t\t\t\texternalURL\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t\tcaption {\n\t\t\t\t\tdocument\n\t\t\t\t}\n\t\t\t\tcreatedAt\n\t\t\t}\n\t\t}\n\t}")
 
 		s, err := l.Parse()
 
@@ -196,8 +193,7 @@ func TestParse(t *testing.T) {
 	})
 
 	t.Run("json with opName, without variable, w/o alias, with object value arg no line feed", func(t *testing.T) {
-		l := Lexer{input: "query iniOperationName {\n  IniQuerySatu(\n    query: \"\"\n    size: 1\n    cursor: \"1\"\n    cursorType: PAGE\n    filters: {status: NEED_REVIEW}\n    sortType: STATUS_ASC_AND_UPDATED_AT_DESC\n  ) {\n    cursorInfo {\n      count\n      __typename\n    }\n    __typename\n  }\n}"}
-		l.Reset()
+		l := New("query iniOperationName {\n  IniQuerySatu(\n    query: \"\"\n    size: 1\n    cursor: \"1\"\n    cursorType: PAGE\n    filters: {status: NEED_REVIEW}\n    sortType: STATUS_ASC_AND_UPDATED_AT_DESC\n  ) {\n    cursorInfo {\n      count\n      __typename\n    }\n    __typename\n  }\n}")
 
 		s, err := l.Parse()
 
@@ -208,8 +204,7 @@ func TestParse(t *testing.T) {
 	})
 
 	t.Run("json with opName, with variable, w/o alias, with fragment", func(t *testing.T) {
-		l := Lexer{input: "mutation AddObjectToProfileClassification($objectID: ID!, $objectType: ProfileClassificationObjectType!, $profileClassificationID: ID!) {\n\nAddObjectToProfileClassification(objectID: $objectID, objectType: $objectType, profileClassificationID: $profileClassificationID){\n\n... on User{\n\n...User\n\n}\n\n... on Publisher{\n\n...Publisher\n\n}\n\n}\n\n}\n\nfragment User on User {\n\n__typename\n\nid\n\nname\n\nusername\n\naboutMe\n\nemail\n\nstatus\n\nphone\n\nemailVerified\n\nphoneVerified\n\nprofilePictureMedia {\n\n...Media\n\n}\n\ncoverPictureMedia {\n\n...Media\n\n}\n\ngender\n\nuserStatus: status\n\nbirthDate\n\nisRecommended\n\ncreatedAt\n\nupdatedAt\n\ndeletedAt\n\naboutMe\n\nisVerified\n\nwebsiteURL\n\nisVerified\n\nemailVerified\n\nwebsiteURL\n\nrole{\n\nid\n\nname\n\nslug\n\n}\n\nlastUpdatedBy{\n\nid\n\n}\n\nmetaTitle\n\nmetaDescription\n\nmetaKeyword\n\nemails{\n\nemail\n\nverifiedAt\n\ncreatedAt\n\n}\n\nisPasswordSet\n\nauthorizedChannel{\n\nisAuthorized\n\nchannel{\n\nid\n\nname\n\nslug\n\nmeta_title\n\nmeta_description\n\nmeta_keywords\n\n}\n\n}\n\nuserTermsAndConditionsAgreement {\n\nagreedAt\n\nid\n\nstatus\n\ntermsAndConditions {\n\ncreatedAt\n\nid\n\nupdatedAt\n\nversion\n\n}\n\n}\n\n}\n\nfragment Media on Media {\n\nid\n\ntitle\n\ndescription\n\npublicID\n\nexternalURL\n\nawsS3Key\n\nheight\n\nwidth\n\nlocationName\n\nlocationLat\n\nlocationLon\n\nmediaType\n\nmediaSourceID\n\nphotographer\n\neventDate\n\nlastUpdatedBy{\n\nid\n\nname\n\n}\n\nisArchived\n\ncreatedBy{\n\nid\n\nname\n\n}\n\ncreatedAt\n\nlastUpdatedAt\n\ntopics{\n\nid\n\n}\n\nmediaSource{\n\nid\n\nname\n\ncreatedAt\n\nlastUpdatedAt\n\ncreatedBy{\n\nid\n\nname\n\n}\n\nlastUpdatedBy{\n\nid\n\nname\n\n}\n\n}\n\n}\n\nfragment Publisher on Publisher {\n\n__typename\n\nid\n\nname\n\nslug\n\ndescription\n\nwebsite\n\nmetaTitle\n\nmetaKeywords\n\nmetaDescription\n\nisVerified\n\nisActive\n\nisPremium\n\ncoverMedia {\n\n...SimpleMedia\n\n}\n\navatarMedia {\n\n...SimpleMedia\n\n}\n\norganisation{\n\n...Organisation\n\n}\n\nauthorizedRSSConsumers{\n\nid\n\n}\n\nauthorizedChannel{\n\nchannel{\n\nid\n\n}\n\nisAuthorized\n\n}\n\npublisherGroupID\n\nisAutoMemberByDomain\n\ndomains\n\nenableGeneralPushNotificationForMember\n\nenableSegmentedPushNotificationForMember\n\n}\n\nfragment SimpleMedia on Media {\n\nid\n\ntitle\n\nlastUpdatedBy{\n\nid\n\n}\n\nisArchived\n\ncreatedBy{\n\nid\n\n}\n\ncreatedAt\n\nlastUpdatedAt\n\ntopics{\n\nid\n\n}\n\nmediaSource{\n\nid\n\ncreatedBy{\n\nid\n\n}\n\nlastUpdatedBy{\n\nid\n\n}\n\n}\n\n}\n\nfragment Organisation on Organisation {\n\nid\n\nname\n\nslug\n\ndescription\n\norganisationType\n\nwebsite\n\nisActive\n\ncoverMedia{\n\n...SimpleMedia\n\n}\n\navatarMedia{\n\n...SimpleMedia\n\n}\n\naddress\n\nphone1\n\nphone2\n\nemail\n\nmetaTitle\n\nmetaDescription\n\nmetaKeywords\n\nownedBy{\n\n...SimpleUser\n\n}\n\ncreatedBy{\n\n...SimpleUser\n\n}\n\n}\n\nfragment SimpleUser on User {\n\n__typename\n\nid\n\nname\n\nusername\n\nrole{\n\nid\n\n}\n\nauthorizedChannel{\n\nisAuthorized\n\nchannel{\n\nid\n\n}\n\n}\n\n}"}
-		l.Reset()
+		l := New("mutation AddObjectToProfileClassification($objectID: ID!, $objectType: ProfileClassificationObjectType!, $profileClassificationID: ID!) {\n\nAddObjectToProfileClassification(objectID: $objectID, objectType: $objectType, profileClassificationID: $profileClassificationID){\n\n... on User{\n\n...User\n\n}\n\n... on Publisher{\n\n...Publisher\n\n}\n\n}\n\n}\n\nfragment User on User {\n\n__typename\n\nid\n\nname\n\nusername\n\naboutMe\n\nemail\n\nstatus\n\nphone\n\nemailVerified\n\nphoneVerified\n\nprofilePictureMedia {\n\n...Media\n\n}\n\ncoverPictureMedia {\n\n...Media\n\n}\n\ngender\n\nuserStatus: status\n\nbirthDate\n\nisRecommended\n\ncreatedAt\n\nupdatedAt\n\ndeletedAt\n\naboutMe\n\nisVerified\n\nwebsiteURL\n\nisVerified\n\nemailVerified\n\nwebsiteURL\n\nrole{\n\nid\n\nname\n\nslug\n\n}\n\nlastUpdatedBy{\n\nid\n\n}\n\nmetaTitle\n\nmetaDescription\n\nmetaKeyword\n\nemails{\n\nemail\n\nverifiedAt\n\ncreatedAt\n\n}\n\nisPasswordSet\n\nauthorizedChannel{\n\nisAuthorized\n\nchannel{\n\nid\n\nname\n\nslug\n\nmeta_title\n\nmeta_description\n\nmeta_keywords\n\n}\n\n}\n\nuserTermsAndConditionsAgreement {\n\nagreedAt\n\nid\n\nstatus\n\ntermsAndConditions {\n\ncreatedAt\n\nid\n\nupdatedAt\n\nversion\n\n}\n\n}\n\n}\n\nfragment Media on Media {\n\nid\n\ntitle\n\ndescription\n\npublicID\n\nexternalURL\n\nawsS3Key\n\nheight\n\nwidth\n\nlocationName\n\nlocationLat\n\nlocationLon\n\nmediaType\n\nmediaSourceID\n\nphotographer\n\neventDate\n\nlastUpdatedBy{\n\nid\n\nname\n\n}\n\nisArchived\n\ncreatedBy{\n\nid\n\nname\n\n}\n\ncreatedAt\n\nlastUpdatedAt\n\ntopics{\n\nid\n\n}\n\nmediaSource{\n\nid\n\nname\n\ncreatedAt\n\nlastUpdatedAt\n\ncreatedBy{\n\nid\n\nname\n\n}\n\nlastUpdatedBy{\n\nid\n\nname\n\n}\n\n}\n\n}\n\nfragment Publisher on Publisher {\n\n__typename\n\nid\n\nname\n\nslug\n\ndescription\n\nwebsite\n\nmetaTitle\n\nmetaKeywords\n\nmetaDescription\n\nisVerified\n\nisActive\n\nisPremium\n\ncoverMedia {\n\n...SimpleMedia\n\n}\n\navatarMedia {\n\n...SimpleMedia\n\n}\n\norganisation{\n\n...Organisation\n\n}\n\nauthorizedRSSConsumers{\n\nid\n\n}\n\nauthorizedChannel{\n\nchannel{\n\nid\n\n}\n\nisAuthorized\n\n}\n\npublisherGroupID\n\nisAutoMemberByDomain\n\ndomains\n\nenableGeneralPushNotificationForMember\n\nenableSegmentedPushNotificationForMember\n\n}\n\nfragment SimpleMedia on Media {\n\nid\n\ntitle\n\nlastUpdatedBy{\n\nid\n\n}\n\nisArchived\n\ncreatedBy{\n\nid\n\n}\n\ncreatedAt\n\nlastUpdatedAt\n\ntopics{\n\nid\n\n}\n\nmediaSource{\n\nid\n\ncreatedBy{\n\nid\n\n}\n\nlastUpdatedBy{\n\nid\n\n}\n\n}\n\n}\n\nfragment Organisation on Organisation {\n\nid\n\nname\n\nslug\n\ndescription\n\norganisationType\n\nwebsite\n\nisActive\n\ncoverMedia{\n\n...SimpleMedia\n\n}\n\navatarMedia{\n\n...SimpleMedia\n\n}\n\naddress\n\nphone1\n\nphone2\n\nemail\n\nmetaTitle\n\nmetaDescription\n\nmetaKeywords\n\nownedBy{\n\n...SimpleUser\n\n}\n\ncreatedBy{\n\n...SimpleUser\n\n}\n\n}\n\nfragment SimpleUser on User {\n\n__typename\n\nid\n\nname\n\nusername\n\nrole{\n\nid\n\n}\n\nauthorizedChannel{\n\nisAuthorized\n\nchannel{\n\nid\n\n}\n\n}\n\n}")
 
 		s, err := l.Parse()
 
@@ -220,8 +215,7 @@ func TestParse(t *testing.T) {
 	})
 
 	t.Run("json with text", func(t *testing.T) {
-		l := Lexer{input: "mutation {\n  ReviseTopicSummaries(\n    linkedSummaryID: \"12345678\"\n    synthesisVoiceID: 2\n    reviseInput: [\n      {\n        summaryID: \"12345678\"\n        revisedSummary: \"COK Suzuki Fronx adalah mobil sub-compact SUV yang dirilis dengan harga mulai dari Rp 242,2 juta hingga Rp 316,3 juta. asda asda sdas\"\n      }\n    ]\n  )\n}"}
-		l.Reset()
+		l := New("mutation {\n  ReviseTopicSummaries(\n    linkedSummaryID: \"12345678\"\n    synthesisVoiceID: 2\n    reviseInput: [\n      {\n        summaryID: \"12345678\"\n        revisedSummary: \"COK Suzuki Fronx adalah mobil sub-compact SUV yang dirilis dengan harga mulai dari Rp 242,2 juta hingga Rp 316,3 juta. asda asda sdas\"\n      }\n    ]\n  )\n}")
 
 		s, err := l.Parse()
 
@@ -231,8 +225,7 @@ func TestParse(t *testing.T) {
 	})
 
 	t.Run("json with text 2", func(t *testing.T) {
-		l := Lexer{input: "mutation {\n\tAnalyzeTypo(texts: [\n    \"GuluGuluGleg Gleg Gleg Khhrkkkrrrhrhhhrkkk\",\n    \"Lorem ipsum dolor sit amet, elit\",\n    \"roin maximus lectus ut turpis semper, vel blandit est accumsan.\",\n    \"Quisque faucibus, dui eu suscipit condimentum, sapien ante tincidunt ipsum, vitae aliquam elit odio quis arcu.\",\n    \"Donec aliquet tristique elit ut euismod\",\n    \"Proin ut urna eget mi euismod auctor.\",\n    \"Quisque faucibus, dui eu suscipit condimentum, sapien ante tincidunt ipsum, vitae aliquam elit odio quis arcu.\",\n\t]) {\n\t\ttypos{\n\t\t\toffset\n\t\t\ttype\n\t\t\ttoken\n\t\t\tsuggestions {\n\t\t\t\ttoken\n\t\t\t\tscore\n\t\t\t}\n\t\t}\n\t\t\n\t}\n}"}
-		l.Reset()
+		l := New("mutation {\n\tAnalyzeTypo(texts: [\n    \"GuluGuluGleg Gleg Gleg Khhrkkkrrrhrhhhrkkk\",\n    \"Lorem ipsum dolor sit amet, elit\",\n    \"roin maximus lectus ut turpis semper, vel blandit est accumsan.\",\n    \"Quisque faucibus, dui eu suscipit condimentum, sapien ante tincidunt ipsum, vitae aliquam elit odio quis arcu.\",\n    \"Donec aliquet tristique elit ut euismod\",\n    \"Proin ut urna eget mi euismod auctor.\",\n    \"Quisque faucibus, dui eu suscipit condimentum, sapien ante tincidunt ipsum, vitae aliquam elit odio quis arcu.\",\n\t]) {\n\t\ttypos{\n\t\t\toffset\n\t\t\ttype\n\t\t\ttoken\n\t\t\tsuggestions {\n\t\t\t\ttoken\n\t\t\t\tscore\n\t\t\t}\n\t\t}\n\t\t\n\t}\n}")
 
 		s, err := l.Parse()
 
@@ -242,8 +235,7 @@ func TestParse(t *testing.T) {
 	})
 
 	t.Run("json input array", func(t *testing.T) {
-		l := Lexer{input: "mutation {\n\tReviseTopicSummaries(\n\t\treviseInput: [\n\t\t\t{\n\t\t\tsummaryID: \"1234567890\"\n\t\t\trevisedSummary: \"Satpol PP Kabupaten Penajam Paser Utara menangkap 64 PSK di wilayah IKN sepanjang tahun ini. Mereka yang terjaring berasal dari berbagai kota seperti Samarinda, Balikpapan, Bandung, Makassar, dan Yogyakarta. \\n \\n Para PSK tersebut beroperasi secara mandiri, tanpa difasilitasi oleh muncikari. Oleh karena itu, mereka tidak dapat dikenakan pidana, melainkan hanya mendapatkan sanksi pengusiran dari Penajam Paser Utara.\"\n\t\t\t},\n\t\t\t{\n\t\t\tsummaryID: \"1234567890\"\n\t\t\trevisedSummary: \"* Terbaru! Suzuki Fronx meluncurkan fitur Advanced Driving Assistant System (ADAS) yang dirancang untuk membantu pengemudi mengurangi keletihan dan meningkatkan keselamatan berkendara.\\n* Fitur-fitur ADAS di Suzuki Fronx meliputi Dual Sensor Brake Support II, Adaptive Cruise Control, Lane Keep Assist, Lane Departure Warning, Lane Departure Prevention, Vehicle Swaying Warning, Blind Spot Monitor, Rear Cross Traffic Alert, dan High Beam Assist.\\n* Sistem ini memanfaatkan modul kamera dan sensor radar untuk memancarkan gelombang radio untuk mengukur jarak dan kecepatan objek di depan dan belakang.\\n* Suzuki Fronx hadir sebagai pilihan baru di segmen SUV sub-compact crossover dengan panjang dimensi 4 meter dan tersedia dalam varian SGX A/T SHVS, GX A/T SHVS, GX M/T SHVS, GL A/T, dan GL M/T.\\n* Suzuki Fronx berhasil mengimpor 3.990 unit mobil ke Jepang pada bulan April, lebih tinggi dibandingkan Mercedes-Benz dan BMW, didorong oleh ledakan permintaan terhadap Jimny Nomade versi lima pintu.\"\n\t\t\t},\n\t\t]\n\t\tlinkedSummaryID: \"1765524525286736337\"\n\t\tsynthesisVoiceID: \"1\"\n\t)\n}"}
-		l.Reset()
+		l := New("mutation {\n\tReviseTopicSummaries(\n\t\treviseInput: [\n\t\t\t{\n\t\t\tsummaryID: \"1234567890\"\n\t\t\trevisedSummary: \"Satpol PP Kabupaten Penajam Paser Utara menangkap 64 PSK di wilayah IKN sepanjang tahun ini. Mereka yang terjaring berasal dari berbagai kota seperti Samarinda, Balikpapan, Bandung, Makassar, dan Yogyakarta. \\n \\n Para PSK tersebut beroperasi secara mandiri, tanpa difasilitasi oleh muncikari. Oleh karena itu, mereka tidak dapat dikenakan pidana, melainkan hanya mendapatkan sanksi pengusiran dari Penajam Paser Utara.\"\n\t\t\t},\n\t\t\t{\n\t\t\tsummaryID: \"1234567890\"\n\t\t\trevisedSummary: \"* Terbaru! Suzuki Fronx meluncurkan fitur Advanced Driving Assistant System (ADAS) yang dirancang untuk membantu pengemudi mengurangi keletihan dan meningkatkan keselamatan berkendara.\\n* Fitur-fitur ADAS di Suzuki Fronx meliputi Dual Sensor Brake Support II, Adaptive Cruise Control, Lane Keep Assist, Lane Departure Warning, Lane Departure Prevention, Vehicle Swaying Warning, Blind Spot Monitor, Rear Cross Traffic Alert, dan High Beam Assist.\\n* Sistem ini memanfaatkan modul kamera dan sensor radar untuk memancarkan gelombang radio untuk mengukur jarak dan kecepatan objek di depan dan belakang.\\n* Suzuki Fronx hadir sebagai pilihan baru di segmen SUV sub-compact crossover dengan panjang dimensi 4 meter dan tersedia dalam varian SGX A/T SHVS, GX A/T SHVS, GX M/T SHVS, GL A/T, dan GL M/T.\\n* Suzuki Fronx berhasil mengimpor 3.990 unit mobil ke Jepang pada bulan April, lebih tinggi dibandingkan Mercedes-Benz dan BMW, didorong oleh ledakan permintaan terhadap Jimny Nomade versi lima pintu.\"\n\t\t\t},\n\t\t]\n\t\tlinkedSummaryID: \"1765524525286736337\"\n\t\tsynthesisVoiceID: \"1\"\n\t)\n}")
 
 		s, err := l.Parse()
 
@@ -253,24 +245,22 @@ func TestParse(t *testing.T) {
 	})
 
 	t.Run("json introspection query", func(t *testing.T) {
-		l := Lexer{input: "\n    query IntrospectionQuery {\n      __schema {\n        \n        queryType { name kind }\n        mutationType { name kind }\n        subscriptionType { name kind }\n        types {\n          ...FullType\n        }\n        directives {\n          name\n          description\n          \n          locations\n          args {\n            ...InputValue\n          }\n        }\n      }\n    }\n\n    "}
-		l.Reset()
+		l := New("\n    query IntrospectionQuery {\n      __schema {\n        \n        queryType { name kind }\n        mutationType { name kind }\n        subscriptionType { name kind }\n        types {\n          ...FullType\n        }\n        directives {\n          name\n          description\n          \n          locations\n          args {\n            ...InputValue\n          }\n        }\n      }\n    }\n\n    ")
 
 		s, err := l.Parse()
 
-		assert.Error(t, err) // TODO: should be no error. have not yet handle subquery with space separator "{ name kind }"
+		assert.NoError(t, err) // fixed: one-line sub-selections now parse
 		assert.Equal(t, operation.Query, s.Type)
 		assert.Equal(t, "IntrospectionQuery", s.Name)
 		assert.Equal(t, "__schema", s.Selections["__schema"].Name)
 	})
 
 	t.Run("json query like user input", func(t *testing.T) {
-		l := Lexer{input: "mutation {\n  CreateDraftStoryV2(\n    draft: {\n\t\t\tauthorID: \"1234567890\", \n\t\t\tpublisherID: \"\", \n\t\t\tchannelID: \"3\", \n\t\t\ttitle: \"ICOK Suzuki Fronx adalah mobil\", \n\t\t\tsource: UGC, \n\t\t\tleadText: \"dummy leadtext\", \n\t\t\tcontent: \"{\\\"object\\\":\\\"value\\\",\\\"document\\\":{\\\"object\\\":\\\"document\\\",\\\"data\\\":{},\\\"nodes\\\":[{\\\"object\\\":\\\"block\\\",\\\"type\\\":\\\"heading-large\\\",\\\"data\\\":{},\\\"nodes\\\":[{\\\"object\\\":\\\"text\\\",\\\"leaves\\\":[{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"IHSG Dibuka Menguat, Rupiah Melemah, Bursa Asia Bergerak Variatif\\\",\\\"marks\\\":[]}]}]},{\\\"object\\\":\\\"block\\\",\\\"type\\\":\\\"paragraph\\\",\\\"data\\\":{},\\\"nodes\\\":[{\\\"object\\\":\\\"text\\\",\\\"leaves\\\":[{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"Indeks Harga Saham Gabungan (IHSG) mengawali perdagangan hari ini dengan menunjukkan penguatan, mencerminkan sentimen positif di awal sesi. Namun, di pasar valuta asing, nilai tukar rupiah terhadap dolar Amerika Serikat (AS) terpantau melemah. Sementara itu, bursa saham-saham utama di Asia menampilkan pergerakan yang beragam, dengan beberapa indeks dibuka positif dan lainnya menunjukkan koreksi di sesi pertama.\\\",\\\"marks\\\":[]}]}]},{\\\"object\\\":\\\"block\\\",\\\"type\\\":\\\"heading-medium\\\",\\\"data\\\":{},\\\"nodes\\\":[{\\\"object\\\":\\\"text\\\",\\\"leaves\\\":[{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"IHSG\\\",\\\"marks\\\":[]}]}]},{\\\"object\\\":\\\"block\\\",\\\"type\\\":\\\"paragraph\\\",\\\"data\\\":{},\\\"nodes\\\":[{\\\"object\\\":\\\"text\\\",\\\"leaves\\\":[{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"Pada pembukaan perdagangan tanggal \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"11 Desember 2025\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\" pukul \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"09:00:00 WIB\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\", Indeks Harga Saham Gabungan (IHSG) berhasil dibuka di level \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"8764.09\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\". Kinerja positif ini ditandai dengan kenaikan sebesar \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"0.73%\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\" dari posisi penutupan sebelumnya, memberikan sinyal optimisme bagi para investor di awal sesi perdagangan.\\\",\\\"marks\\\":[]}]}]},{\\\"object\\\":\\\"block\\\",\\\"type\\\":\\\"heading-medium\\\",\\\"data\\\":{},\\\"nodes\\\":[{\\\"object\\\":\\\"text\\\",\\\"leaves\\\":[{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"Nilai Tukar Rupiah\\\",\\\"marks\\\":[]}]}]},{\\\"object\\\":\\\"block\\\",\\\"type\\\":\\\"paragraph\\\",\\\"data\\\":{},\\\"nodes\\\":[{\\\"object\\\":\\\"text\\\",\\\"leaves\\\":[{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"Kondisi berbeda terlihat di pasar valuta asing. Data terkini pada pukul \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"09:50:00 WIB\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\" menunjukkan bahwa nilai tukar mata uang rupiah terhadap dolar AS berada pada level \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"16683\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\". Angka ini mengindikasikan adanya depresiasi atau pelemahan rupiah terhadap mata uang Negeri Paman Sam tersebut, yang mungkin menjadi perhatian bagi eksportir dan importir serta sektor keuangan.\\\",\\\"marks\\\":[]}]}]},{\\\"object\\\":\\\"block\\\",\\\"type\\\":\\\"heading-medium\\\",\\\"data\\\":{},\\\"nodes\\\":[{\\\"object\\\":\\\"text\\\",\\\"leaves\\\":[{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"Bursa Saham Asia\\\",\\\"marks\\\":[]}]}]},{\\\"object\\\":\\\"block\\\",\\\"type\\\":\\\"paragraph\\\",\\\"data\\\":{},\\\"nodes\\\":[{\\\"object\\\":\\\"text\\\",\\\"leaves\\\":[{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"Berikut adalah kinerja indeks saham utama di Asia pada awal perdagangan hari ini:\\\",\\\"marks\\\":[]}]}]},{\\\"object\\\":\\\"block\\\",\\\"type\\\":\\\"paragraph\\\",\\\"data\\\":{},\\\"nodes\\\":[{\\\"object\\\":\\\"text\\\",\\\"leaves\\\":[{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"*   \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"Nikkei 225\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\" (Jepang):\\\",\\\"marks\\\":[]}]}]},{\\\"object\\\":\\\"block\\\",\\\"type\\\":\\\"paragraph\\\",\\\"data\\\":{},\\\"nodes\\\":[{\\\"object\\\":\\\"text\\\",\\\"leaves\\\":[{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"*   Dibuka pada \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"11 Desember 2025\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\" pukul \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"07:00:00 WIB\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\" di level \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"50818.39\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\", naik sebesar \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"0.43%\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\".\\\",\\\"marks\\\":[]}]}]},{\\\"object\\\":\\\"block\\\",\\\"type\\\":\\\"paragraph\\\",\\\"data\\\":{},\\\"nodes\\\":[{\\\"object\\\":\\\"text\\\",\\\"leaves\\\":[{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"*   Pada penutupan sesi 1 pukul \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"09:35:00 WIB\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\", indeks ini bergerak terkoreksi ke level \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"50308.89\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\", turun sebesar \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"-0.58%\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\".\\\",\\\"marks\\\":[]}]}]},{\\\"object\\\":\\\"block\\\",\\\"type\\\":\\\"paragraph\\\",\\\"data\\\":{},\\\"nodes\\\":[{\\\"object\\\":\\\"text\\\",\\\"leaves\\\":[{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"*   \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"Hang Seng Index\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\" (Hong Kong):\\\",\\\"marks\\\":[]}]}]},{\\\"object\\\":\\\"block\\\",\\\"type\\\":\\\"paragraph\\\",\\\"data\\\":{},\\\"nodes\\\":[{\\\"object\\\":\\\"text\\\",\\\"leaves\\\":[{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"*   Dibuka pada \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"11 Desember 2025\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\" pukul \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"08:30:00 WIB\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\" di level \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"25710.61\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\", menguat sebesar \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"0.66%\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\".\\\",\\\"marks\\\":[]}]}]},{\\\"object\\\":\\\"block\\\",\\\"type\\\":\\\"paragraph\\\",\\\"data\\\":{},\\\"nodes\\\":[{\\\"object\\\":\\\"text\\\",\\\"leaves\\\":[{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"*   \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"Shanghai Composite\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\" (Tiongkok):\\\",\\\"marks\\\":[]}]}]},{\\\"object\\\":\\\"block\\\",\\\"type\\\":\\\"paragraph\\\",\\\"data\\\":{},\\\"nodes\\\":[{\\\"object\\\":\\\"text\\\",\\\"leaves\\\":[{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"*   Dibuka pada \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"11 Desember 2025\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\" pukul \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"08:30:00 WIB\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\" di level \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"3904.96\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\", naik tipis sebesar \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"0.11%\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\".\\\",\\\"marks\\\":[]}]}]},{\\\"object\\\":\\\"block\\\",\\\"type\\\":\\\"paragraph\\\",\\\"data\\\":{},\\\"nodes\\\":[{\\\"object\\\":\\\"text\\\",\\\"leaves\\\":[{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"*   \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"STI (Straits Times Index)\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\" (Singapura):\\\",\\\"marks\\\":[]}]}]},{\\\"object\\\":\\\"block\\\",\\\"type\\\":\\\"paragraph\\\",\\\"data\\\":{},\\\"nodes\\\":[{\\\"object\\\":\\\"text\\\",\\\"leaves\\\":[{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"*   Dibuka pada \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"11 Desember 2025\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\" pukul \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"08:00:00 WIB\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\" di level \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"4516.34\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\", menguat sebesar \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"0.23%\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\".\\\",\\\"marks\\\":[]}]}]},{\\\"object\\\":\\\"block\\\",\\\"type\\\":\\\"paragraph\\\",\\\"data\\\":{},\\\"nodes\\\":[{\\\"object\\\":\\\"text\\\",\\\"leaves\\\":[{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"Secara keseluruhan, bursa saham Asia menunjukkan pergerakan yang variatif. Meskipun Hang Seng, Shanghai Composite, dan STI dibuka dengan penguatan, Nikkei 225 yang sebelumnya dibuka positif harus mengalami koreksi pada penutupan sesi pertamanya. Hal ini mencerminkan sentimen pasar yang beragam di kawasan Asia pagi ini, dengan beberapa pasar masih menjaga momentum positif sementara yang lain menghadapi tekanan jual.\\\",\\\"marks\\\":[]}]}]}]}}\", \n\t\t\tdocumentType: SLATEJS, \n\t\t\treporterIDs: [], \n\t\t\tleadMediaIDs: [], \n\t\t\ttopicIDs: [], \n\t\t\teditorIDs: [], \n\t\t\taddOns: [], \n\t\t\tattributes: {}\n\t\t}) \n\t{\n    id\n    title\n    slug\n  }\n}"}
-		l.Reset()
+		l := New("mutation {\n  CreateDraftStoryV2(\n    draft: {\n\t\t\tauthorID: \"1234567890\", \n\t\t\tpublisherID: \"\", \n\t\t\tchannelID: \"3\", \n\t\t\ttitle: \"ICOK Suzuki Fronx adalah mobil\", \n\t\t\tsource: UGC, \n\t\t\tleadText: \"dummy leadtext\", \n\t\t\tcontent: \"{\\\"object\\\":\\\"value\\\",\\\"document\\\":{\\\"object\\\":\\\"document\\\",\\\"data\\\":{},\\\"nodes\\\":[{\\\"object\\\":\\\"block\\\",\\\"type\\\":\\\"heading-large\\\",\\\"data\\\":{},\\\"nodes\\\":[{\\\"object\\\":\\\"text\\\",\\\"leaves\\\":[{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"IHSG Dibuka Menguat, Rupiah Melemah, Bursa Asia Bergerak Variatif\\\",\\\"marks\\\":[]}]}]},{\\\"object\\\":\\\"block\\\",\\\"type\\\":\\\"paragraph\\\",\\\"data\\\":{},\\\"nodes\\\":[{\\\"object\\\":\\\"text\\\",\\\"leaves\\\":[{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"Indeks Harga Saham Gabungan (IHSG) mengawali perdagangan hari ini dengan menunjukkan penguatan, mencerminkan sentimen positif di awal sesi. Namun, di pasar valuta asing, nilai tukar rupiah terhadap dolar Amerika Serikat (AS) terpantau melemah. Sementara itu, bursa saham-saham utama di Asia menampilkan pergerakan yang beragam, dengan beberapa indeks dibuka positif dan lainnya menunjukkan koreksi di sesi pertama.\\\",\\\"marks\\\":[]}]}]},{\\\"object\\\":\\\"block\\\",\\\"type\\\":\\\"heading-medium\\\",\\\"data\\\":{},\\\"nodes\\\":[{\\\"object\\\":\\\"text\\\",\\\"leaves\\\":[{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"IHSG\\\",\\\"marks\\\":[]}]}]},{\\\"object\\\":\\\"block\\\",\\\"type\\\":\\\"paragraph\\\",\\\"data\\\":{},\\\"nodes\\\":[{\\\"object\\\":\\\"text\\\",\\\"leaves\\\":[{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"Pada pembukaan perdagangan tanggal \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"11 Desember 2025\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\" pukul \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"09:00:00 WIB\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\", Indeks Harga Saham Gabungan (IHSG) berhasil dibuka di level \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"8764.09\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\". Kinerja positif ini ditandai dengan kenaikan sebesar \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"0.73%\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\" dari posisi penutupan sebelumnya, memberikan sinyal optimisme bagi para investor di awal sesi perdagangan.\\\",\\\"marks\\\":[]}]}]},{\\\"object\\\":\\\"block\\\",\\\"type\\\":\\\"heading-medium\\\",\\\"data\\\":{},\\\"nodes\\\":[{\\\"object\\\":\\\"text\\\",\\\"leaves\\\":[{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"Nilai Tukar Rupiah\\\",\\\"marks\\\":[]}]}]},{\\\"object\\\":\\\"block\\\",\\\"type\\\":\\\"paragraph\\\",\\\"data\\\":{},\\\"nodes\\\":[{\\\"object\\\":\\\"text\\\",\\\"leaves\\\":[{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"Kondisi berbeda terlihat di pasar valuta asing. Data terkini pada pukul \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"09:50:00 WIB\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\" menunjukkan bahwa nilai tukar mata uang rupiah terhadap dolar AS berada pada level \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"16683\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\". Angka ini mengindikasikan adanya depresiasi atau pelemahan rupiah terhadap mata uang Negeri Paman Sam tersebut, yang mungkin menjadi perhatian bagi eksportir dan importir serta sektor keuangan.\\\",\\\"marks\\\":[]}]}]},{\\\"object\\\":\\\"block\\\",\\\"type\\\":\\\"heading-medium\\\",\\\"data\\\":{},\\\"nodes\\\":[{\\\"object\\\":\\\"text\\\",\\\"leaves\\\":[{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"Bursa Saham Asia\\\",\\\"marks\\\":[]}]}]},{\\\"object\\\":\\\"block\\\",\\\"type\\\":\\\"paragraph\\\",\\\"data\\\":{},\\\"nodes\\\":[{\\\"object\\\":\\\"text\\\",\\\"leaves\\\":[{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"Berikut adalah kinerja indeks saham utama di Asia pada awal perdagangan hari ini:\\\",\\\"marks\\\":[]}]}]},{\\\"object\\\":\\\"block\\\",\\\"type\\\":\\\"paragraph\\\",\\\"data\\\":{},\\\"nodes\\\":[{\\\"object\\\":\\\"text\\\",\\\"leaves\\\":[{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"*   \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"Nikkei 225\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\" (Jepang):\\\",\\\"marks\\\":[]}]}]},{\\\"object\\\":\\\"block\\\",\\\"type\\\":\\\"paragraph\\\",\\\"data\\\":{},\\\"nodes\\\":[{\\\"object\\\":\\\"text\\\",\\\"leaves\\\":[{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"*   Dibuka pada \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"11 Desember 2025\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\" pukul \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"07:00:00 WIB\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\" di level \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"50818.39\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\", naik sebesar \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"0.43%\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\".\\\",\\\"marks\\\":[]}]}]},{\\\"object\\\":\\\"block\\\",\\\"type\\\":\\\"paragraph\\\",\\\"data\\\":{},\\\"nodes\\\":[{\\\"object\\\":\\\"text\\\",\\\"leaves\\\":[{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"*   Pada penutupan sesi 1 pukul \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"09:35:00 WIB\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\", indeks ini bergerak terkoreksi ke level \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"50308.89\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\", turun sebesar \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"-0.58%\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\".\\\",\\\"marks\\\":[]}]}]},{\\\"object\\\":\\\"block\\\",\\\"type\\\":\\\"paragraph\\\",\\\"data\\\":{},\\\"nodes\\\":[{\\\"object\\\":\\\"text\\\",\\\"leaves\\\":[{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"*   \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"Hang Seng Index\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\" (Hong Kong):\\\",\\\"marks\\\":[]}]}]},{\\\"object\\\":\\\"block\\\",\\\"type\\\":\\\"paragraph\\\",\\\"data\\\":{},\\\"nodes\\\":[{\\\"object\\\":\\\"text\\\",\\\"leaves\\\":[{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"*   Dibuka pada \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"11 Desember 2025\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\" pukul \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"08:30:00 WIB\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\" di level \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"25710.61\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\", menguat sebesar \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"0.66%\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\".\\\",\\\"marks\\\":[]}]}]},{\\\"object\\\":\\\"block\\\",\\\"type\\\":\\\"paragraph\\\",\\\"data\\\":{},\\\"nodes\\\":[{\\\"object\\\":\\\"text\\\",\\\"leaves\\\":[{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"*   \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"Shanghai Composite\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\" (Tiongkok):\\\",\\\"marks\\\":[]}]}]},{\\\"object\\\":\\\"block\\\",\\\"type\\\":\\\"paragraph\\\",\\\"data\\\":{},\\\"nodes\\\":[{\\\"object\\\":\\\"text\\\",\\\"leaves\\\":[{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"*   Dibuka pada \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"11 Desember 2025\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\" pukul \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"08:30:00 WIB\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\" di level \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"3904.96\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\", naik tipis sebesar \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"0.11%\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\".\\\",\\\"marks\\\":[]}]}]},{\\\"object\\\":\\\"block\\\",\\\"type\\\":\\\"paragraph\\\",\\\"data\\\":{},\\\"nodes\\\":[{\\\"object\\\":\\\"text\\\",\\\"leaves\\\":[{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"*   \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"STI (Straits Times Index)\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\" (Singapura):\\\",\\\"marks\\\":[]}]}]},{\\\"object\\\":\\\"block\\\",\\\"type\\\":\\\"paragraph\\\",\\\"data\\\":{},\\\"nodes\\\":[{\\\"object\\\":\\\"text\\\",\\\"leaves\\\":[{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"*   Dibuka pada \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"11 Desember 2025\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\" pukul \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"08:00:00 WIB\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\" di level \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"4516.34\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\", menguat sebesar \\\",\\\"marks\\\":[]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"0.23%\\\",\\\"marks\\\":[{\\\"object\\\":\\\"mark\\\",\\\"type\\\":\\\"bold\\\"}]},{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\".\\\",\\\"marks\\\":[]}]}]},{\\\"object\\\":\\\"block\\\",\\\"type\\\":\\\"paragraph\\\",\\\"data\\\":{},\\\"nodes\\\":[{\\\"object\\\":\\\"text\\\",\\\"leaves\\\":[{\\\"object\\\":\\\"leaf\\\",\\\"text\\\":\\\"Secara keseluruhan, bursa saham Asia menunjukkan pergerakan yang variatif. Meskipun Hang Seng, Shanghai Composite, dan STI dibuka dengan penguatan, Nikkei 225 yang sebelumnya dibuka positif harus mengalami koreksi pada penutupan sesi pertamanya. Hal ini mencerminkan sentimen pasar yang beragam di kawasan Asia pagi ini, dengan beberapa pasar masih menjaga momentum positif sementara yang lain menghadapi tekanan jual.\\\",\\\"marks\\\":[]}]}]}]}}\", \n\t\t\tdocumentType: SLATEJS, \n\t\t\treporterIDs: [], \n\t\t\tleadMediaIDs: [], \n\t\t\ttopicIDs: [], \n\t\t\teditorIDs: [], \n\t\t\taddOns: [], \n\t\t\tattributes: {}\n\t\t}) \n\t{\n    id\n    title\n    slug\n  }\n}")
 
 		s, err := l.Parse()
 
-		assert.Error(t, err) // TODO: handle query-like input
+		assert.NoError(t, err) // fixed: escaped quotes in string values now parse
 		assert.Equal(t, operation.Mutation, s.Type)
 		assert.Equal(t, "CreateDraftStoryV2", s.Selections["CreateDraftStoryV2"].Name)
 	})
@@ -290,157 +280,92 @@ func TestErrEOF_WorksWithErrorsIs(t *testing.T) {
 	assert.True(t, errors.Is(wrapped, ErrEOF))
 }
 
-func TestErrEOF_SameSentinelReturnedEveryTime(t *testing.T) {
-	// read() must return the exact sentinel each time, not a fresh
-	// errors.New. If it returned a new value every call, errors.Is
-	// would fail for callers who capture an earlier return.
-	l := Lexer{input: ""}
-	l.Reset()
-	_, err1 := l.read()
-	_, err2 := l.read()
-	assert.Same(t, err1, err2, "read() must return the same ErrEOF sentinel on every call")
-}
-
 // =============================================================
 // read() is a non-consuming peek
 // =============================================================
 
-func TestRead_OnEmptyInput_ReturnsErrEOF(t *testing.T) {
-	l := Lexer{input: ""}
-	l.Reset()
-	_, err := l.read()
-	assert.True(t, errors.Is(err, ErrEOF))
-}
-
-func TestRead_ReturnsCorrectRune(t *testing.T) {
-	l := Lexer{input: "q"}
-	l.Reset()
-	c, err := l.read()
-	assert.NoError(t, err)
-	assert.Equal(t, 'q', c)
-}
-
-func TestRead_DoesNotAdvanceCursor(t *testing.T) {
-	// Calling read() twice without advancing must return the same rune.
-	l := Lexer{input: "ab"}
-	l.Reset()
-	c1, _ := l.read()
-	c2, _ := l.read()
-	assert.Equal(t, 'a', c1)
-	assert.Equal(t, 'a', c2, "read() must be a pure peek — calling twice must return the same rune")
-}
-
 func TestParseOperationType_EmptyInput_ReturnsNilError(t *testing.T) {
-	l := Lexer{input: ""}
-	l.Reset()
-	_, _, err := l.parseOperationType()
+	l := New("")
+	_, err := l.ParseOperationType()
 	assert.NoError(t, err, "EOF on empty input must be suppressed — not a real parse error")
 }
 
 func TestParseOperationType_EmptyInput_DoesNotReturnErrEOF(t *testing.T) {
-	l := Lexer{input: ""}
-	l.Reset()
-	_, _, err := l.parseOperationType()
+	l := New("")
+	_, err := l.ParseOperationType()
 	assert.False(t, errors.Is(err, ErrEOF), "ErrEOF must not reach the caller for empty input")
 }
 
 func TestParseOperationType_WhitespaceOnly_ReturnsNilError(t *testing.T) {
-	l := Lexer{input: "   \n\t  "}
-	l.Reset()
-	_, _, err := l.parseOperationType()
+	l := New("   \n\t  ")
+	_, err := l.ParseOperationType()
 	assert.NoError(t, err, "whitespace-only input is not a parse error")
 }
 
 func TestParseOperationType_EmptyInput_ReturnsZeroValues(t *testing.T) {
-	l := Lexer{input: ""}
-	l.Reset()
-	op, isAnon, err := l.parseOperationType()
+	l := New("")
+	op, err := l.ParseOperationType()
 	assert.NoError(t, err)
 	assert.Equal(t, operation.Type(""), op)
-	assert.False(t, isAnon)
 }
 
 func TestParseOperationType_Query(t *testing.T) {
-	l := Lexer{input: "query"}
-	l.Reset()
-	op, isAnon, err := l.parseOperationType()
+	l := New("query")
+	op, err := l.ParseOperationType()
 	assert.NoError(t, err)
 	assert.Equal(t, operation.Query, op)
-	assert.False(t, isAnon)
 }
 
 func TestParseOperationType_Mutation(t *testing.T) {
-	l := Lexer{input: "mutation"}
-	l.Reset()
-	op, isAnon, err := l.parseOperationType()
+	l := New("mutation")
+	op, err := l.ParseOperationType()
 	assert.NoError(t, err)
 	assert.Equal(t, operation.Mutation, op)
-	assert.False(t, isAnon)
 }
 
 func TestParseOperationType_Subscription(t *testing.T) {
-	l := Lexer{input: "subscription"}
-	l.Reset()
-	op, isAnon, err := l.parseOperationType()
+	l := New("subscription")
+	op, err := l.ParseOperationType()
 	assert.NoError(t, err)
 	assert.Equal(t, operation.Subscription, op)
-	assert.False(t, isAnon)
 }
 
 func TestParseOperationType_OpenBrace_ReturnsQueryAndIsAnonymous(t *testing.T) {
-	l := Lexer{input: "{"}
-	l.Reset()
-	op, isAnon, err := l.parseOperationType()
+	l := New("{")
+	op, err := l.ParseOperationType()
 	assert.NoError(t, err)
 	assert.Equal(t, operation.Query, op)
-	assert.True(t, isAnon)
-}
 
-func TestParseOperationType_OpenBrace_AdvancesCursorPastBrace(t *testing.T) {
-	l := Lexer{input: "{ field }"}
-	l.Reset()
-	_, _, err := l.parseOperationType()
+	// The "isAnonymous" return value is gone. An anonymous operation is now
+	// observable through its empty name.
+	parsed, err := New("{ field }").Parse()
 	assert.NoError(t, err)
-	assert.Equal(t, 1, l.cursor, "cursor must be at 1 (past '{') after parseOperationType")
-}
-
-func TestParseOperationType_OpenBrace_NextReadIsNotOpenBrace(t *testing.T) {
-	// Concrete regression: after parseOperationType consumes '{',
-	// the very next read() must not return '{' again.
-	l := Lexer{input: "{ field }"}
-	l.Reset()
-	_, _, _ = l.parseOperationType()
-	c, _ := l.read()
-	assert.NotEqual(t, '{', c, "cursor not advanced past '{': double-read bug still present")
+	assert.Equal(t, "", parsed.Name)
 }
 
 func TestParseOperation_EmptyInput_ReturnsNilError(t *testing.T) {
-	l := Lexer{input: ""}
-	l.Reset()
-	_, err := l.parseOperation()
+	l := New("")
+	_, err := l.Parse()
 	assert.NoError(t, err, "empty input must not produce an error from parseOperation")
 }
 
 func TestParseOperation_EmptyInput_DoesNotReturnErrEOF(t *testing.T) {
-	l := Lexer{input: ""}
-	l.Reset()
-	_, err := l.parseOperation()
+	l := New("")
+	_, err := l.Parse()
 	assert.False(t, errors.Is(err, ErrEOF), "ErrEOF must not leak from parseOperation for empty input")
 }
 
 func TestParseOperation_EmptyInput_ReturnsZeroOperation(t *testing.T) {
-	l := Lexer{input: ""}
-	l.Reset()
-	op, err := l.parseOperation()
+	l := New("")
+	op, err := l.Parse()
 	assert.NoError(t, err)
 	assert.Equal(t, operation.Type(""), op.Type)
 	assert.Equal(t, "", op.Name)
 }
 
 func TestParseOperation_WhitespaceOnly_ReturnsNilError(t *testing.T) {
-	l := Lexer{input: "   \n   "}
-	l.Reset()
-	_, err := l.parseOperation()
+	l := New("   \n   ")
+	_, err := l.Parse()
 	assert.NoError(t, err)
 }
 
@@ -589,4 +514,642 @@ func TestParse_NoEOFErrorForAnyValidInput(t *testing.T) {
 				"Parse(%q): ErrEOF must not leak to the caller", tc.input)
 		})
 	}
+}
+
+// =====================================================================
+// Retired tests
+//
+// Six tests from before this change are gone, and each one asserted
+// something about the hand-written lexer's own machinery rather than about
+// the analysis it produced. There is no cursor and no rune-at-a-time read
+// to assert against any more:
+//
+//	TestRead_OnEmptyInput_ReturnsErrEOF
+//	TestRead_ReturnsCorrectRune
+//	TestRead_DoesNotAdvanceCursor
+//	TestErrEOF_SameSentinelReturnedEveryTime
+//	TestParseOperationType_OpenBrace_AdvancesCursorPastBrace
+//	TestParseOperationType_OpenBrace_NextReadIsNotOpenBrace
+//
+// The last two guarded against '{' being read twice on an anonymous
+// operation. What that protected is observable, and is asserted in
+// TestParseOperationType_OpenBrace_ReturnsQueryAndIsAnonymous and in
+// TestParse_AnonymousQuery_SelectionsPresent: the body still parses.
+//
+// Every other test from before this change is kept below or above, under its
+// original name.
+// =====================================================================
+
+// =====================================================================
+// Carried over from the deleted internal test files
+//
+// These exercised unexported functions of the hand-written lexer
+// (isAlphabet, parseKeyword, parseName, parseSelection, parseSelectionSet,
+// parseArgument, parseArgumentSet). Those functions are gone, so each test
+// below asserts the same behaviour through the public API, keeping the
+// original inputs.
+// =====================================================================
+
+// from utils_test.go: TestIsAlphabet
+//
+// The old isAlphabet used unicode.IsLetter, so it accepted "ø", "中" and "д"
+// as identifier characters. The GraphQL spec defines Name as
+// [_A-Za-z][_0-9A-Za-z]*, so those documents are not valid GraphQL and a real
+// server rejects them. gqlparser and graphql-core both reject them too.
+// Accepting them was a bug, so that expectation is deliberately not carried
+// over; this test pins the spec behaviour instead.
+func TestIsAlphabet(t *testing.T) {
+	t.Run("lowercase letters", func(t *testing.T) {
+		op, err := New("{ abcdefghijklmnopqrstuvwxyz }").Parse()
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"abcdefghijklmnopqrstuvwxyz"}, topLevelNames(op.Selections))
+	})
+
+	t.Run("uppercase letters", func(t *testing.T) {
+		op, err := New("{ ABCDEFGHIJKLMNOPQRSTUVWXYZ }").Parse()
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"ABCDEFGHIJKLMNOPQRSTUVWXYZ"}, topLevelNames(op.Selections))
+	})
+
+	t.Run("digits and underscores", func(t *testing.T) {
+		op, err := New("{ _a1_B2 }").Parse()
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"_a1_B2"}, topLevelNames(op.Selections))
+	})
+
+	t.Run("unicode letters", func(t *testing.T) {
+		for _, name := range []string{"ø", "中", "д", "café"} {
+			_, err := New("{ " + name + " }").Parse()
+			assert.Errorf(t, err, "%q is not a valid GraphQL Name", name)
+		}
+	})
+
+	t.Run("non letters", func(t *testing.T) {
+		for _, name := range []string{"😔", "\n", "\t", " "} {
+			_, err := New("{ " + name + " }").Parse()
+			assert.Error(t, err)
+		}
+	})
+}
+
+// from parse_keyword_test.go: TestParseMutationKeyword
+func TestParseMutationKeyword(t *testing.T) {
+	t.Run(`should return no error when given correct keyword`, func(t *testing.T) {
+		ot, err := New("mutation { a }").ParseOperationType()
+
+		assert.NoError(t, err)
+		assert.Equal(t, operation.Mutation, ot)
+	})
+
+	t.Run(`should return error when given mismatch keyword`, func(t *testing.T) {
+		// "querty" is not an operation keyword.
+		_, err := New("querty { a }").Parse()
+
+		assert.Error(t, err)
+	})
+}
+
+// from parse_name_test.go: TestParseName
+func TestParseName(t *testing.T) {
+	t.Run("ok, alphabet", func(t *testing.T) {
+		op, err := New("{ hello }").Parse()
+
+		assert.NoError(t, err)
+		assert.Equal(t, "hello", op.Selections["hello"].Name)
+	})
+
+	t.Run("ok, underscore", func(t *testing.T) {
+		op, err := New("{ __hello }").Parse()
+
+		assert.NoError(t, err)
+		assert.Equal(t, "__hello", op.Selections["__hello"].Name)
+	})
+
+	t.Run("fail: not _ or alphabet", func(t *testing.T) {
+		_, err := New("{ 9hello }").Parse()
+
+		assert.Error(t, err)
+	})
+}
+
+// from parse_operation_test.go: TestParseOperation
+func TestParseOperation(t *testing.T) {
+	t.Run("with anonymous operation", func(t *testing.T) {
+		l := New(`{
+			SomeQuery(id: 123) {
+				subQuery
+			}
+		}`)
+
+		s, err := l.Parse()
+
+		assert.NoError(t, err)
+		assert.Equal(t, operation.Query, s.Type)
+		assert.Equal(t, "", s.Name)
+		assert.Equal(t, "SomeQuery", s.Selections["SomeQuery"].Name)
+		assert.Equal(t, "id", s.Selections["SomeQuery"].Arguments["id"].Key)
+		assert.Equal(t, "123", s.Selections["SomeQuery"].Arguments["id"].Value)
+		assert.Equal(t, "subQuery", s.Selections["SomeQuery"].InnerSelection["subQuery"].Name)
+	})
+}
+
+// from parse_selection_test.go: TestParseSelection
+func TestParseSelection(t *testing.T) {
+	t.Run("without parameter", func(t *testing.T) {
+		op, err := New("{ SomeQuery }").Parse()
+
+		assert.NoError(t, err)
+		assert.Equal(t, "SomeQuery", op.Selections["SomeQuery"].Name)
+	})
+
+	t.Run("with subselection", func(t *testing.T) {
+		op, err := New(`{ SomeQuery {
+			subQuery
+		} }`).Parse()
+
+		assert.NoError(t, err)
+		s := op.Selections["SomeQuery"]
+		assert.Equal(t, "SomeQuery", s.Name)
+		assert.Equal(t, "subQuery", s.InnerSelection["subQuery"].Name)
+	})
+
+	t.Run("with arguments", func(t *testing.T) {
+		op, err := New(`{ SomeQuery(id: 123) {
+			subQuery
+		} }`).Parse()
+
+		assert.NoError(t, err)
+		s := op.Selections["SomeQuery"]
+		assert.Equal(t, "SomeQuery", s.Name)
+		assert.Equal(t, "subQuery", s.InnerSelection["subQuery"].Name)
+		assert.Equal(t, "id", s.Arguments["id"].Key)
+	})
+}
+
+// from parse_selection_test.go: TestParseSelectionSet
+func TestParseSelectionSet(t *testing.T) {
+	t.Run("with correct separator", func(t *testing.T) {
+		op, err := New(`{
+		query1, query2
+		query3
+	}`).Parse()
+
+		assert.NoError(t, err)
+		s := op.Selections
+		assert.Equal(t, "query1", s["query1"].Name)
+		assert.Equal(t, "query2", s["query2"].Name)
+		assert.Equal(t, "query3", s["query3"].Name)
+	})
+
+	t.Run("with incorrect separator", func(t *testing.T) {
+		// The old lexer only accepted a newline or comma between fields, so it
+		// could not read "query1 query2" and the original test only asserted
+		// that no error came back. All three fields are now reported.
+		op, err := New(`{
+		query1 query2
+		query3
+	}`).Parse()
+
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"query1", "query2", "query3"}, topLevelNames(op.Selections))
+	})
+
+	t.Run("with nested value", func(t *testing.T) {
+		op, err := New(`{
+		query1(id: 123) {
+			query3
+		},
+		query2
+	}`).Parse()
+
+		assert.NoError(t, err)
+		s := op.Selections
+		assert.Equal(t, "query1", s["query1"].Name)
+		assert.Equal(t, "query3", s["query1"].InnerSelection["query3"].Name)
+		assert.Equal(t, "id", s["query1"].Arguments["id"].Key)
+		assert.Equal(t, "query2", s["query2"].Name)
+	})
+}
+
+// from parse_selection_args_test.go: TestParseArgument
+func TestParseArgument(t *testing.T) {
+	t.Run("with string value", func(t *testing.T) {
+		op, err := New(`{ field(SomeQuery: "helloworld") }`).Parse()
+
+		assert.NoError(t, err)
+		s := op.Selections["field"].Arguments["SomeQuery"]
+		assert.Equal(t, "SomeQuery", s.Key)
+		assert.Equal(t, `"helloworld"`, s.Value)
+	})
+
+	t.Run("with object value", func(t *testing.T) {
+		op, err := New(`{ field(SomeQuery: {
+			test: "helloworld",
+			test2: "helloworld"
+		}) }`).Parse()
+
+		assert.NoError(t, err)
+		s := op.Selections["field"].Arguments["SomeQuery"]
+		assert.Equal(t, "SomeQuery", s.Key)
+		assert.Equal(t, "test", s.ObjectValue["test"].Key)
+		assert.Equal(t, `"helloworld"`, s.ObjectValue["test"].Value)
+		assert.Equal(t, "test2", s.ObjectValue["test2"].Key)
+	})
+}
+
+// from parse_selection_args_test.go: TestParseArgumentSet
+func TestParseArgumentSet(t *testing.T) {
+	t.Run("with single value", func(t *testing.T) {
+		op, err := New(`{ field(
+		arg1: 1,
+		arg2: 2,
+		arg3: 3
+ ) }`).Parse()
+
+		assert.NoError(t, err)
+		s := op.Selections["field"].Arguments
+		assert.Equal(t, "arg1", s["arg1"].Key)
+		assert.Equal(t, "1", s["arg1"].Value)
+		assert.Equal(t, "arg2", s["arg2"].Key)
+		assert.Equal(t, "2", s["arg2"].Value)
+		assert.Equal(t, "arg3", s["arg3"].Key)
+		assert.Equal(t, "3", s["arg3"].Value)
+	})
+
+	t.Run("with nested value", func(t *testing.T) {
+		op, err := New(`{ field(
+			user: {
+				name: "danu",
+				id: 123
+			},
+			page: 1
+		) }`).Parse()
+
+		assert.NoError(t, err)
+		s := op.Selections["field"].Arguments
+		assert.Equal(t, "user", s["user"].Key)
+		assert.Equal(t, "page", s["page"].Key)
+		assert.Equal(t, "1", s["page"].Value)
+		assert.Equal(t, `"danu"`, s["user"].ObjectValue["name"].Value)
+		assert.Equal(t, "123", s["user"].ObjectValue["id"].Value)
+	})
+}
+
+// =====================================================================
+// Regressions for the queries the hand-written lexer could not read
+// =====================================================================
+
+func TestParse_SingleLineQuery(t *testing.T) {
+	// Used to fail with "expected separator, but got: #": fields were only
+	// treated as separate when a newline or comma stood between them.
+	cases := []struct {
+		name  string
+		input string
+		want  []string
+	}{
+		{"single field inline", `{__typename}`, []string{"__typename"}},
+		{"space separated", `query { a b }`, []string{"a", "b"}},
+		{"comma separated", `query { a, b }`, []string{"a", "b"}},
+		{"whole query on one line", `query { Find(slug: "msci", size: 5) { edges { id title } } }`, []string{"Find"}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			op, err := New(tc.input).Parse()
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, topLevelNames(op.Selections))
+		})
+	}
+}
+
+func TestParse_InlineSubSelection(t *testing.T) {
+	// Used to fail with "end of file": reading "publisher { slug }" swallowed
+	// the closing brace, so every later brace was off by one.
+	op, err := New("query {\n  a {\n    publisher { slug }\n    author { username }\n  }\n}").Parse()
+
+	require.NoError(t, err)
+	inner := op.Selections["a"].InnerSelection
+	assert.Equal(t, []string{"author", "publisher"}, topLevelNames(inner))
+	assert.Equal(t, "slug", inner["publisher"].InnerSelection["slug"].Name)
+	assert.Equal(t, "username", inner["author"].InnerSelection["username"].Name)
+}
+
+func TestParse_EscapedQuoteInString(t *testing.T) {
+	// Used to fail: parseString stopped at the first '"' regardless of the
+	// backslash in front of it.
+	op, err := New(`mutation { m(x: "he said \"hi\"") }`).Parse()
+
+	require.NoError(t, err)
+	assert.Equal(t, `"he said \"hi\""`, op.Selections["m"].Arguments["x"].Value)
+}
+
+func TestParse_BracketInsideStringInsideList(t *testing.T) {
+	// Used to fail: parseArray scanned to the first ']', including one that
+	// sat inside a string.
+	op, err := New(`mutation { m(x: ["a]b", "c"]) }`).Parse()
+
+	require.NoError(t, err)
+	assert.Equal(t, `["a]b", "c"]`, op.Selections["m"].Arguments["x"].Value)
+}
+
+func TestParse_ArrayArgumentFollowedByAnother(t *testing.T) {
+	// Used to succeed with the wrong answer: parseArray advanced the cursor
+	// twice, so a character after ']' was skipped, the arguments were lost and
+	// the sub-field surfaced as a top-level selection.
+	op, err := New("{\n  f(t: [STORY], x: 1) {\n    a\n  }\n}").Parse()
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"f"}, topLevelNames(op.Selections))
+	assert.Equal(t, "[STORY]", op.Selections["f"].Arguments["t"].Value)
+	assert.Equal(t, "1", op.Selections["f"].Arguments["x"].Value)
+	assert.Equal(t, "a", op.Selections["f"].InnerSelection["a"].Name)
+}
+
+func TestParse_NestedList(t *testing.T) {
+	op, err := New(`mutation { m(x: [[1, 2], [3]]) }`).Parse()
+
+	require.NoError(t, err)
+	assert.Equal(t, "[[1, 2], [3]]", op.Selections["m"].Arguments["x"].Value)
+}
+
+func TestParse_EmptyListArgument(t *testing.T) {
+	// Used to fail with "invalid stack pop" when written on one line.
+	op, err := New("mutation {\n  f(d: {a: [], b: 1}) {\n    x\n  }\n}").Parse()
+
+	require.NoError(t, err)
+	assert.Equal(t, "[]", op.Selections["f"].Arguments["d"].ObjectValue["a"].Value)
+	assert.Equal(t, "1", op.Selections["f"].Arguments["d"].ObjectValue["b"].Value)
+}
+
+func TestParse_BlockString(t *testing.T) {
+	op, err := New("mutation { m(x: \"\"\"he said \"hi\"\"\"\") }").Parse()
+
+	require.NoError(t, err)
+	assert.Equal(t, `"he said \"hi\""`, op.Selections["m"].Arguments["x"].Value)
+}
+
+func TestParse_Comment(t *testing.T) {
+	// Used to fail: '#' is the old lexer's own flush marker, so a real comment
+	// could not be read.
+	op, err := New("query {\n  # pick the first page\n  a\n}").Parse()
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"a"}, topLevelNames(op.Selections))
+}
+
+func TestParse_VariableDefaultValueContainingParen(t *testing.T) {
+	// Used to succeed with an empty selection set: the variable block was
+	// skipped by scanning to the first ')', including one inside a string.
+	op, err := New(`query Q($x: String = ")") { a }`).Parse()
+
+	require.NoError(t, err)
+	assert.Equal(t, "Q", op.Name)
+	assert.Equal(t, []string{"a"}, topLevelNames(op.Selections))
+}
+
+func TestParse_FragmentSpreadWithSpace(t *testing.T) {
+	// Used to report a selection named "g": parseName assumed the three
+	// characters after "... " were always "on ".
+	op, err := New("query {\n  a {\n    ... Frag\n  }\n}\nfragment Frag on T { id }").Parse()
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"id"}, topLevelNames(op.Selections["a"].InnerSelection))
+}
+
+func TestParse_InlineFragmentContributesFieldsToParent(t *testing.T) {
+	op, err := New("{\n  edges {\n    object {\n      ... on Story { id title }\n      ... on Video { id duration }\n    }\n  }\n}").Parse()
+
+	require.NoError(t, err)
+	object := op.Selections["edges"].InnerSelection["object"].InnerSelection
+	assert.Equal(t, []string{"duration", "id", "title"}, topLevelNames(object))
+}
+
+func TestParse_FragmentExpansionCanBeDisabled(t *testing.T) {
+	l := NewWithOptions(
+		"{\n  edges {\n    object {\n      ... on Story { id title }\n    }\n  }\n}",
+		Options{DisableFragmentExpansion: true},
+	)
+
+	op, err := l.Parse()
+
+	require.NoError(t, err)
+	assert.Empty(t, op.Selections["edges"].InnerSelection["object"].InnerSelection)
+}
+
+func TestParse_RecursiveFragmentTerminates(t *testing.T) {
+	// A fragment cycle is invalid GraphQL but must not hang the analyzer.
+	op, err := New("query { a { ...A } }\nfragment A on T { id ...B }\nfragment B on T { name ...A }").Parse()
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"id", "name"}, topLevelNames(op.Selections["a"].InnerSelection))
+}
+
+func TestParse_MalformedQueryReturnsError(t *testing.T) {
+	// Errors are no longer swallowed.
+	_, err := New("query { a(").Parse()
+
+	assert.Error(t, err)
+}
+
+func TestParse_TokenLimitRejectsOversizedDocument(t *testing.T) {
+	huge := "query {" + strings.Repeat("a b c d e f g h ", 5000) + "}"
+
+	_, err := New(huge).Parse()
+
+	assert.Error(t, err)
+}
+
+func TestParse_PathologicalInputsTerminateQuickly(t *testing.T) {
+	// Deep nesting and fragment fan-out must not hang. The token limit and the
+	// selection-node budget are what keep these bounded.
+	var diamond strings.Builder
+	diamond.WriteString("{ ...F0 }\n")
+	const depth = 40
+	for i := 0; i < depth; i++ {
+		cur, next := strconv.Itoa(i), strconv.Itoa(i+1)
+		diamond.WriteString("fragment F" + cur + " on T { ...F" + next + " ...F" + next + " }\n")
+	}
+	diamond.WriteString("fragment F" + strconv.Itoa(depth) + " on T { id }\n")
+
+	cases := []struct{ name, input string }{
+		{"deep braces", "{" + strings.Repeat("a{", 10000) + "b" + strings.Repeat("}", 10001)},
+		{"deep lists", "{f(x: " + strings.Repeat("[", 10000) + strings.Repeat("]", 10000) + ")}"},
+		{"deep objects", "{f(x: " + strings.Repeat("{a: ", 5000) + "1" + strings.Repeat("}", 5000) + ")}"},
+		{"fragment diamond", diamond.String()},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
+				_, _ = New(tc.input).Parse()
+			}()
+			select {
+			case <-done:
+			case <-time.After(5 * time.Second):
+				t.Fatalf("%s did not finish within 5s", tc.name)
+			}
+		})
+	}
+}
+
+// =====================================================================
+// Multi-operation documents and variables
+// =====================================================================
+
+func TestParse_MultipleOperations_DefaultsToFirst(t *testing.T) {
+	op, err := New("query First { a }\nquery Second { b }").Parse()
+
+	require.NoError(t, err)
+	assert.Equal(t, "First", op.Name)
+}
+
+func TestParse_MultipleOperations_SelectByName(t *testing.T) {
+	l := NewWithOptions("query First { a }\nquery Second { b }", Options{OperationName: "Second"})
+
+	op, err := l.Parse()
+
+	require.NoError(t, err)
+	assert.Equal(t, "Second", op.Name)
+	assert.Equal(t, []string{"b"}, topLevelNames(op.Selections))
+}
+
+func TestParse_VariableDefinitionsAreReported(t *testing.T) {
+	op, err := New(`query Q($id: ID!, $size: Int) { a }`).Parse()
+
+	require.NoError(t, err)
+	names := make([]string, 0, len(op.Variables))
+	for _, v := range op.Variables {
+		names = append(names, v.Name)
+	}
+	assert.Equal(t, []string{"id", "size"}, names)
+}
+
+func TestParseWithVariables_PrefixNamesAreNotConfused(t *testing.T) {
+	// Used to be non-deterministic: substitution was a plain string replace,
+	// so "$id" also matched the start of "$idType", and Go's map iteration
+	// order decided which one won.
+	for i := 0; i < 50; i++ {
+		op, err := New("query {\n  a(id: $id, idType: $idType)\n}").
+			ParseWithVariables(`{"id": "x", "idType": "USER"}`)
+
+		require.NoError(t, err)
+		assert.Equal(t, `"x"`, op.Selections["a"].Arguments["id"].Value)
+		assert.Equal(t, `"USER"`, op.Selections["a"].Arguments["idType"].Value)
+	}
+}
+
+func TestParseWithVariables_QuoteInsideVariableValue(t *testing.T) {
+	op, err := New("query {\n  a(t: $t)\n}").ParseWithVariables(`{"t": "say \"hi\""}`)
+
+	require.NoError(t, err)
+	assert.Equal(t, `"say \"hi\""`, op.Selections["a"].Arguments["t"].Value)
+}
+
+func TestParseWithVariables_NumberAndObjectValues(t *testing.T) {
+	op, err := New("query {\n  a(size: $size, filter: $filter)\n}").
+		ParseWithVariables(`{"size": 25, "filter": {"storyTypes": ["STORY"]}}`)
+
+	require.NoError(t, err)
+	assert.Equal(t, "25", op.Selections["a"].Arguments["size"].Value)
+	assert.Equal(t, `{"storyTypes":["STORY"]}`, op.Selections["a"].Arguments["filter"].Value)
+}
+
+func TestParseWithVariables_UnsuppliedVariableKeepsReference(t *testing.T) {
+	op, err := New("query {\n  a(id: $id)\n}").ParseWithVariables(`{}`)
+
+	require.NoError(t, err)
+	assert.Equal(t, "$id", op.Selections["a"].Arguments["id"].Value)
+}
+
+func TestParseWithVariables_InvalidJSONReturnsError(t *testing.T) {
+	_, err := New("query { a(id: $id) }").ParseWithVariables(`{`)
+
+	assert.Error(t, err)
+}
+
+func TestParse_FragmentsOnly_ReturnsZeroOperation(t *testing.T) {
+	op, err := New("fragment F on T { id }").Parse()
+
+	assert.NoError(t, err)
+	assert.Equal(t, operation.Type(""), op.Type)
+}
+
+func TestParse_IsRepeatable(t *testing.T) {
+	// The old Lexer carried cursor and stack state, so a second Parse on the
+	// same value returned something different.
+	l := New("query Q { a b }")
+
+	first, err := l.Parse()
+	require.NoError(t, err)
+	second, err := l.Parse()
+	require.NoError(t, err)
+
+	assert.Equal(t, first.Name, second.Name)
+	assert.Equal(t, topLevelNames(first.Selections), topLevelNames(second.Selections))
+}
+
+func TestReset_IsANoOp(t *testing.T) {
+	l := New("query Q { a }")
+	l.Reset()
+
+	op, err := l.Parse()
+
+	assert.NoError(t, err)
+	assert.Equal(t, "Q", op.Name)
+}
+
+// =====================================================================
+// Production corpus
+// =====================================================================
+
+// TestParse_ProductionCorpus replays real queries captured in production.
+// Every one of them is valid GraphQL and every one of them failed on the
+// hand-written lexer.
+func TestParse_ProductionCorpus(t *testing.T) {
+	const path = "testdata/queries.csv"
+
+	f, err := os.Open(path)
+	if os.IsNotExist(err) {
+		t.Skipf("corpus not present at %s", path)
+	}
+	require.NoError(t, err)
+	defer f.Close() //nolint:errcheck // read-only
+
+	r := csv.NewReader(f)
+	r.FieldsPerRecord = -1
+	rows, err := r.ReadAll()
+	require.NoError(t, err)
+	require.Greater(t, len(rows), 1, "corpus must hold at least one query")
+
+	parsed := 0
+	for i, row := range rows[1:] { // skip the header
+		if len(row) == 0 || strings.TrimSpace(row[0]) == "" {
+			continue
+		}
+
+		op, err := NewWithOptions(row[0], Options{MaxTokenLimit: -1}).Parse()
+		if !assert.NoErrorf(t, err, "row %d: %.120s", i+2, row[0]) {
+			continue
+		}
+		assert.NotEmptyf(t, op.Type, "row %d: operation type must be set", i+2)
+		assert.NotEmptyf(t, op.Selections, "row %d: selections must not be empty", i+2)
+		parsed++
+	}
+
+	assert.Equal(t, len(rows)-1, parsed, "every corpus row must parse")
+	t.Logf("parsed %d/%d corpus queries", parsed, len(rows)-1)
+}
+
+// topLevelNames returns the names in a selection set, sorted, so that
+// assertions do not depend on Go's map iteration order.
+func topLevelNames(set token.SelectionSet) []string {
+	names := make([]string, 0, len(set))
+	for name := range set {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	return names
 }

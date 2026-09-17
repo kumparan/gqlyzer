@@ -1,7 +1,7 @@
 // Package token :nodoc:
 package token //nolint:revive
 
-import "github.com/kumparan/gqlyzer/token/operation"
+import "github.com/kumparan/gqlyzer/v2/token/operation"
 
 type (
 	// SelectionSet is list of selection
