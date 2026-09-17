@@ -20,4 +20,4 @@
 # real article text and real author, publisher and channel IDs. The committed
 # stand-in is testdata/queries_anonymized.csv, which keeps every query's
 # layout but replaces the contents of its string literals.
-testdata/queries_anonymized.csv
+testdata/queries.csv

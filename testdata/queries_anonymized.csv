@@ -1,0 +1,357 @@
+query
+"mutation {
+  Dahlia1(
+    cobalt1: {
+            hotel1:""1234567890""
+			basil1: ""1234567890"",
+            amber1: ""1234567890"",
+			zulu1: ""lorem-ipsum"",
+			juliet1: ""Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."",
+			yankee1: XRAY_1,
+			whiskey1: ""Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."",
+            victor1:""lorem-ipsum"",
+			uniform1:  ""{\""alpha\"":\""bravo\"",\""charlie\"":{\""alpha\"":\""charlie\"",\""delta\"":[{\""alpha\"":\""echo\"",\""foxtrot\"":\""golf\"",\""delta\"":[{\""alpha\"":\""hotel\"",\""india\"":\""Lorem ipsum dolor sit amet\""}]}]}}""
+			tango1: SIERRA_1,
+			romeo1: [],
+			quebec1: ""1234567890"",
+			papa1: [""1234567890"",""1234567890"",""1234567890""],
+			oscar1: [],
+			november1: [],
+			mike1: {
+                lima1: ""Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.""
+                kilo1: ""Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.""
+            }
+		})
+	{
+    hotel1
+    juliet1
+    echo1
+    india1 {
+		hotel1
+		alpha1
+        golf1
+	}
+    foxtrot1{echo1}
+    delta1{charlie1}
+    bravo1{alpha1}
+
+  }
+}"
+"mutation {
+  Ginger1(
+    cobalt1: {
+			basil1: ""1234567890"",
+			zulu1: ""lorem-ipsum"",
+            amber1: """",
+			juliet1: ""Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."",
+			yankee1: XRAY_1,
+			whiskey1: ""Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."",
+			uniform1:  ""{\""alpha\"":\""bravo\"",\""charlie\"":{\""alpha\"":\""charlie\"",\""delta\"":[{\""alpha\"":\""echo\"",\""foxtrot\"":\""golf\"",\""delta\"":[{\""alpha\"":\""hotel\"",\""india\"":\""Lorem ipsum dolor sit amet\""}]}]}}""
+			tango1: SIERRA_1,
+			romeo1: [],
+			quebec1: ""1234567890"",
+			papa1: [],
+			oscar1: [],
+			november1: [],
+            mike1: {
+                lima1: ""Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."",
+                kilo1: """"
+
+           },
+		})
+	{
+    hotel1
+    juliet1
+    whiskey1
+    echo1
+    fern1{
+       hotel1
+       fern1
+    }
+    india1{
+       hotel1
+       alpha1
+    }
+    foxtrot1{
+       hotel1
+       alpha1
+    }
+    ember1{hotel1}
+    bravo1{alpha1}
+    delta1{
+     hotel1
+     charlie1
+    }
+  }
+}"
+"{
+  Umber1(
+    topaz1: ""lorem-ipsum""
+    sage1: ""2026-01-01T00:00:00.000Z"",
+    rowan1: QUARTZ_1
+    pearl1:25
+    onyx1: {
+       nectar1: [MAPLE_1]
+     }
+  ){
+    lilac1{
+    kelp1{
+      ... on Jade1{
+    	hotel1
+        juliet1
+	    echo1
+	    foxtrot1{echo1}
+	    indigo1{fern1}
+		harbor1
+       }
+     }
+  }
+}
+}"
+"{
+  Umber1(
+    topaz1: ""lorem-ipsum""
+    sage1: ""2026-01-01T00:00:00.000Z"",
+    rowan1: QUARTZ_1
+    pearl1:25
+    onyx1: {
+       nectar1: [MAPLE_1]
+     }
+  ){
+    lilac1{
+    kelp1{
+      ... on Jade1{
+    	hotel1
+        juliet1
+	    echo1
+	    foxtrot1{echo1}
+	    indigo1{fern1}
+		harbor1
+       }
+     }
+  }
+}
+}"
+"mutation {
+  Ginger1(
+    cobalt1: {
+			basil1: ""1234567890"",
+			amber1: ""1234567890"",
+			zulu1: ""lorem-ipsum"",
+			juliet1: ""lorem-ipsum"",
+			yankee1: XRAY_1,
+			whiskey1: ""lorem-ipsum"",
+			uniform1:  ""{\""alpha\"":\""bravo\"",\""charlie\"":{\""alpha\"":\""charlie\"",\""delta\"":[{\""alpha\"":\""echo\"",\""foxtrot\"":\""golf\"",\""delta\"":[{\""alpha\"":\""hotel\"",\""india\"":\""Lorem ipsum dolor sit amet\""}]}]}}""
+			tango1: SIERRA_1,
+			romeo1: [],
+			quebec1: [],
+			papa1: [],
+			oscar1: [],
+			november1: [],
+			mike1: {}
+		})
+	{
+    hotel1
+    juliet1
+    echo1
+  }
+}"
+"mutation {
+  Ginger1(
+    cobalt1: {
+      basil1: ""1234567890"",
+      amber1: ""1234567890"",
+      zulu1: ""lorem-ipsum"",
+      juliet1: ""Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."",
+      yankee1: XRAY_1,
+      whiskey1: ""Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."",
+      uniform1: ""{\""alpha\"":\""bravo\"",\""charlie\"":{\""alpha\"":\""charlie\"",\""delta\"":[{\""alpha\"":\""echo\"",\""foxtrot\"":\""golf\"",\""delta\"":[{\""alpha\"":\""hotel\"",\""india\"":\""Lorem ipsum dolor sit amet\""}]}]}}"",
+      tango1: SIERRA_1,
+      romeo1: [],
+      quebec1: [],
+      papa1: [],
+      oscar1: [],
+      november1: [],
+      mike1: {
+        lima1: ""Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."",
+      }
+    }
+  ) {
+    hotel1
+    juliet1
+    echo1
+    india1{
+      hotel1
+      alpha1
+      golf1
+    }
+    foxtrot1{
+      alpha1
+    }
+  }
+}"
+"query { Xenon1(willow1: 1, pearl1: 10) { hotel1 alpha1 echo1 violet1 { hotel1 charlie1 } } }"
+"query Charlie2($topaz1: String!, $bravo2: ID, $pearl1: Int!, $sage1: String!, $rowan1: Delta2!) { Charlie2(topaz1: $topaz1, bravo2: $bravo2, rowan1: $rowan1, pearl1: $pearl1, sage1: $sage1) { lilac1 { echo1 harbor1 india1 { golf1 } foxtrot1 { echo1 } } alpha2 { zephyr1 yarrow1 } } }"
+"query Papa2($echo1: String!, $rowan1: Oscar2!, $sage1: String, $pearl1: Int) {
+  november2(echo1: $echo1, rowan1: $rowan1, sage1: $sage1, pearl1: $pearl1) {
+    lilac1 {
+      sage1
+      mike2 {
+        hotel1
+        juliet1
+        echo1
+        lima2
+        hotel2
+        harbor1
+        ember1 { echo1 alpha1 }
+        kilo2 { golf1 juliet2 }
+        india2 { hotel2 }
+      }
+    }
+    golf2 { foxtrot2 echo2 }
+  }
+}"
+"query Zulu2($yankee2: ID!) {
+  Zulu2(yankee2: $yankee2, rowan1: WHISKEY_2) {
+    alpha2 {
+      zephyr1
+      yarrow1
+    }
+    lilac1 {
+      hotel1
+      india1 { hotel1 alpha1 golf1 }
+      victor2
+      fern1 { hotel1 fern1 uniform2 }
+      tango2 { sierra2 }
+      xray2(rowan1: WHISKEY_2, pearl1: 10) {
+        lilac1 {
+          hotel1
+          india1 { hotel1 alpha1 golf1 }
+          victor2
+          romeo2
+          quebec2
+          fern1 { hotel1 fern1 uniform2 }
+          tango2 { sierra2 }
+        }
+        alpha2 { zephyr1 yarrow1 }
+      }
+      romeo2
+      quebec2
+    }
+  }
+}"
+query { __typename }
+query Fern2 { __schema { ember2 { dahlia2 { alpha1 cobalt2 { alpha1 uniform2 { alpha1 basil2 amber2 { alpha1 } } } } } } }
+{__typename}
+{__schema{ginger2{dahlia2{alpha1}} ember2{dahlia2{alpha1}}}}
+"query Umber1($pearl1: Int!, $topaz1: String!, $sage1: String!, $rowan1: Delta2!, $onyx1: Jade2) {  Umber1(pearl1: $pearl1, topaz1: $topaz1, sage1: $sage1, rowan1: $rowan1, onyx1: $onyx1) {    lilac1 {      kelp1 {        ... on Indigo2 {          hotel1          juliet1          echo1          harbor1          foxtrot1 { echo1 }          india1 { golf1 }        }      }    }    alpha2 { harbor2 zephyr1 }  }}"
+"query Onyx2($pearl1: Int!, $sage1: String!, $rowan1: String!, $topaz1: String!, $bravo2: String!) {  Onyx2(pearl1: $pearl1, sage1: $sage1, rowan1: $rowan1, topaz1: $topaz1, bravo2: $bravo2) {    lilac1 {      ...Nectar2    }    alpha2 {      ...Kelp2    }  }}fragment Nectar2 on Jade1 {  hotel1  echo1  juliet1  harbor1  foxtrot1 {    ...Maple2  }}fragment Maple2 on Lilac2 {  echo1}fragment Kelp2 on Kelp2 {  harbor2  zephyr1}"
+"
+    query Foxtrot3 {
+      __schema {
+
+        ginger2 { alpha1 basil2 }
+        ember2 { alpha1 basil2 }
+        echo3 { alpha1 basil2 }
+        delta3 {
+          ...Alpha3
+        }
+        charlie3 {
+          alpha1
+          rowan2
+
+          bravo3
+          cobalt2 {
+            ...Sage2
+          }
+        }
+      }
+    }
+
+    fragment Alpha3 on __Type {
+      basil2
+      alpha1
+      rowan2
+
+
+      dahlia2(willow2: true) {
+        alpha1
+        rowan2
+        cobalt2 {
+          ...Sage2
+        }
+        uniform2 {
+          ...Pearl2
+        }
+        violet2
+        umber2
+      }
+      zephyr2 {
+        ...Sage2
+      }
+      yarrow2 {
+        ...Pearl2
+      }
+      xenon2(willow2: true) {
+        alpha1
+        rowan2
+        violet2
+        umber2
+      }
+      topaz2 {
+        ...Pearl2
+      }
+    }
+
+    fragment Sage2 on __InputValue {
+      alpha1
+      rowan2
+      uniform2 { ...Pearl2 }
+      quartz2
+
+
+    }
+
+    fragment Pearl2 on __Type {
+      basil2
+      alpha1
+      amber2 {
+        basil2
+        alpha1
+        amber2 {
+          basil2
+          alpha1
+          amber2 {
+            basil2
+            alpha1
+            amber2 {
+              basil2
+              alpha1
+              amber2 {
+                basil2
+                alpha1
+                amber2 {
+                  basil2
+                  alpha1
+                  amber2 {
+                    basil2
+                    alpha1
+                    amber2 {
+                      basil2
+                      alpha1
+                      amber2 {
+                        basil2
+                        alpha1
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  "
+"mutation { Hotel3(golf3: ""lorem-ipsum"") }"
+"query ($sage1:String!$pearl1:Int!){Papa2(sage1: $sage1, rowan1: WHISKEY_2, pearl1: $pearl1, kilo3: JULIET_3, india3: {nectar1: [MAPLE_1]}){lilac1{kelp1{... on Jade1{juliet1,whiskey1,echo1,harbor1,kilo1,india1{golf1},foxtrot1{echo1},delta1{charlie1}}}}}}"
