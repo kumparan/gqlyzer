@@ -1,7 +1,7 @@
 // Package token :nodoc:
 package token //nolint:revive
 
-import "github.com/kumparan/gqlyzer/token/operation"
+import "github.com/kumparan/gqlyzer/v2/token/operation"
 
 type (
 	// SelectionSet is list of selection
@@ -19,11 +19,15 @@ type Parameter struct {
 
 // Operation use to contain information of an operation
 type Operation struct {
-	Type operation.Type
-	Name string
-	// TODO: wont be implemented for now
+	Type       operation.Type
+	Name       string
 	Variables  []Parameter
 	Selections SelectionSet
+	// UnresolvedFragments names fragments the document spreads but does not
+	// define, sorted. The specification forbids that, and a fragment name is
+	// not a field, so those names are kept out of Selections and reported
+	// here instead. Empty for a well-formed document.
+	UnresolvedFragments []string
 }
 
 // Selection containing information of a selection
